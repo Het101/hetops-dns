@@ -11,7 +11,12 @@ const rateLimit = require('express-rate-limit');
 const app = express();
 const PORT = process.env.PORT || 3000;
 const DEFAULT_PORTS = [21, 22, 25, 80, 110, 143, 443, 465, 993, 995, 3306, 5432, 8080];
-const DEFAULT_ALLOWED_ORIGINS = ['http://localhost:3000', 'http://127.0.0.1:3000'];
+const DEFAULT_ALLOWED_ORIGINS = [
+  'http://localhost:3000', 
+  'http://127.0.0.1:3000', 
+  'https://dns.hetops.dev', 
+  'http://dns.hetops.dev'
+];
 const configuredOrigins = (process.env.CORS_ORIGINS || '')
   .split(',')
   .map((origin) => origin.trim())
