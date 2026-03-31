@@ -48,7 +48,7 @@ app.use((req, res, next) => {
   next();
 });
 
-app.set('trust proxy', true);
+app.set('trust proxy', 2);
 
 const apiLimiter = rateLimit({
   windowMs: 60 * 1000,
