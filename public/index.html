@@ -981,8 +981,15 @@ function parseWhois(raw){
   const o={};
   for(const line of raw.split('\n')){
     const m=line.match(/^\s*([^:%>\n]+):\s*(.*)$/); if(!m) continue;
-    const k=m[1].trim().toLowerCase(), v=m[2].trim();
+    let k=m[1].trim().toLowerCase();
+    let v=m[2].trim();
     if(!v||v.includes('REDACTED')||v.startsWith('http')) continue;
+    
+    // Normalize aliases for common registrars (e.g. GoDaddy)
+    if(k.includes('expiration date') || k.includes('expiry date')) k = 'registry expiry date';
+    if(k === 'registrar name') k = 'registrar';
+    if(k === 'creation date') k = 'creation date';
+    
     if(o[k]){
       if(!Array.isArray(o[k])) o[k]=[o[k]];
       if(!o[k].includes(v)) o[k].push(v);

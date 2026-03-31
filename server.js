@@ -625,7 +625,37 @@ app.post('/api/whois', heavyApiLimiter, async (req, res) => {
   const timer = new Promise((_, reject) => setTimeout(() => reject(new Error('Whois lookup timed out')), 8000));
 
   try {
-    const data = await Promise.race([whoisPromise, timer]);
+    let data = await Promise.race([whoisPromise, timer]);
+    
+    if (typeof data === 'string' && (data.toLowerCase().includes('rate limit exceeded') || data.toLowerCase().includes('server is being retired') || data.toLowerCase().includes('connection refused'))) {
+      try {
+        const rdapReq = await fetch(`https://rdap.org/domain/${host}`, { headers: { 'Accept': 'application/rdap+json' } });
+        if (rdapReq.ok) {
+          const rdapData = await rdapReq.json();
+          let lines = [];
+          if (rdapData.ldhName) lines.push(`Domain Name: ${rdapData.ldhName}`);
+          if (rdapData.handle) lines.push(`Registry Domain ID: ${rdapData.handle}`);
+          (rdapData.events || []).forEach(e => {
+            if (e.eventAction === 'registration') lines.push(`Creation Date: ${e.eventDate}`);
+            if (e.eventAction === 'expiration') lines.push(`Registry Expiry Date: ${e.eventDate}`);
+            if (e.eventAction === 'last changed') lines.push(`Updated Date: ${e.eventDate}`);
+          });
+          (rdapData.status || []).forEach(s => lines.push(`Domain Status: ${s}`));
+          (rdapData.nameservers || []).forEach(ns => lines.push(`Name Server: ${ns.ldhName}`));
+          (rdapData.entities || []).forEach(ent => {
+            if (ent.roles && ent.roles.includes('registrar')) {
+              const vcard = ent.vcardArray && ent.vcardArray[1];
+              if (vcard) { const fn = vcard.find(item => item[0] === 'fn'); if (fn) lines.push(`Registrar: ${fn[3]}`); }
+              if (ent.publicIds) { const iana = ent.publicIds.find(id => id.type === 'IANA Registrar ID'); if (iana) lines.push(`Registrar IANA ID: ${iana.identifier}`); }
+            }
+          });
+          data = lines.join('\n') + '\n\n--- ORIGINAL BLOCKED RESPONSE ---\n\n' + data;
+        }
+      } catch (e) {
+        // Continue silently if fallback fails
+      }
+    }
+
     res.json({ domain: host, rawData: data });
   } catch (err) {
     res.status(500).json({ error: err.message || 'Whois lookup failed' });
