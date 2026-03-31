@@ -720,8 +720,18 @@ app.post('/api/blacklist-check', heavyApiLimiter, async (req, res) => {
       await Promise.all(blacklists.map(async (bl) => {
         const query = `${reversedIp}.${bl}`;
         try {
-          await resolver.resolve4(query);
-          results.push({ ip, blacklist: bl, listed: true });
+          const addresses = await resolver.resolve4(query);
+          // Spamhaus and other DNSBLs return 127.255.255.254 or 127.255.255.255 
+          // to indicate that you are blocked from querying them (usually because
+          // you are using a public DNS resolver like 8.8.8.8 or 1.1.1.1).
+          // We must NOT treat these as "listed" hits.
+          const isBlockedQuery = addresses.some(ip => ip === '127.255.255.254' || ip === '127.255.255.255');
+          
+          if (isBlockedQuery) {
+            results.push({ ip, blacklist: bl, listed: false, error: 'Query Limit/Blocked by Public DNS' });
+          } else {
+            results.push({ ip, blacklist: bl, listed: true, details: addresses });
+          }
         } catch (err) {
           if (err.code === 'ENOTFOUND') {
             results.push({ ip, blacklist: bl, listed: false });
