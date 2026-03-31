@@ -48,11 +48,11 @@ app.use((req, res, next) => {
   next();
 });
 
-app.set('trust proxy', 1);
+app.set('trust proxy', true);
 
 const apiLimiter = rateLimit({
   windowMs: 60 * 1000,
-  max: 120,
+  max: 300,
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: 'Too many requests. Please retry in a minute.' }
@@ -60,7 +60,7 @@ const apiLimiter = rateLimit({
 
 const heavyApiLimiter = rateLimit({
   windowMs: 60 * 1000,
-  max: 25,
+  max: 100,
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: 'Rate limit exceeded for intensive checks. Please slow down.' }
