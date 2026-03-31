@@ -1,0 +1,17 @@
+<svg width="512" height="150" viewBox="0 200 512 150" xmlns="http://www.w3.org/2000/svg">
+  <style>
+    @import url("https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@1,900&amp;family=Fira+Code:wght@400;500&amp;display=swap");
+    .logo-text {
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      font-weight: 900;
+      font-size: 110px;
+      font-style: italic;
+      letter-spacing: -4px;
+    }
+    .het { fill: #ffffff; }
+    .ops { fill: #10b981; }
+  </style>
+  <text x="256" y="310" text-anchor="middle" class="logo-text">
+    <tspan class="het">HET</tspan><tspan class="ops">OPS_</tspan>
+  </text>
+</svg>
