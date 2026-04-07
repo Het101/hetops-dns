@@ -829,12 +829,14 @@ app.post('/api/geoip', heavyApiLimiter, async (req, res) => {
 
   const geoReq = https.get(`https://ipwho.is/${encodeURIComponent(ip)}`, { timeout: 5000 }, (response) => {
     if (response.statusCode && response.statusCode >= 400) {
-      return res.status(502).json({ error: `GeoIP provider returned HTTP ${response.statusCode}` });
+      if (!res.headersSent) res.status(502).json({ error: `GeoIP provider returned HTTP ${response.statusCode}` });
+      return;
     }
 
     let data = '';
     response.on('data', (chunk) => data += chunk);
     response.on('end', () => {
+      if (res.headersSent) return;
       try {
         const parsed = JSON.parse(data);
         if (!parsed.success) {
@@ -857,12 +859,12 @@ app.post('/api/geoip', heavyApiLimiter, async (req, res) => {
   });
 
   geoReq.on('error', (err) => {
-    res.status(500).json({ error: err.message || 'GeoIP fetch failed' });
+    if (!res.headersSent) res.status(500).json({ error: err.message || 'GeoIP fetch failed' });
   });
 
   geoReq.on('timeout', () => {
     geoReq.destroy();
-    res.status(504).json({ error: 'GeoIP request timed out' });
+    if (!res.headersSent) res.status(504).json({ error: 'GeoIP request timed out' });
   });
 });
 
@@ -1314,44 +1316,60 @@ function calculateSslLabsGrade(score) {
 function calculateSslLabsScore(sslData) {
   let score = 100;
   const issues = [];
+  let capScore = null; // hard cap from critical issues
 
+  // ── Certificate issues ─────────────────────────────────────────
   if (sslData.certificate?.expired) {
-    score -= 30;
-    issues.push('Certificate expired');
+    capScore = 0; issues.push('Certificate expired');
+  }
+  if (sslData.certificate?.daysRemaining < 30 && !sslData.certificate?.expired) {
+    score -= 10; issues.push('Certificate expires soon (< 30 days)');
+  }
+  if (sslData.certificate?.sha1Signed) {
+    score -= 30; if (capScore === null || capScore > 60) capScore = 60;
+    issues.push('Certificate signed with SHA-1 (deprecated, insecure)');
+  }
+  if (sslData.certificate?.keyStrength === 'weak') {
+    score -= 20; issues.push(`Weak key: ${sslData.certificate.keyBits}-bit ${sslData.certificate.keyType}`);
+  }
+  if (sslData.certificate?.longLivedCert) {
+    score -= 5; issues.push('Certificate validity period exceeds 398 days (industry max)');
+  }
+  if (sslData.certificate?.chainIssues) {
+    score -= sslData.certificate.chainIssues * 10; issues.push('Incomplete certificate chain');
   }
 
-  if (sslData.certificate?.daysRemaining < 30) {
-    score -= 10;
-    issues.push('Certificate expires soon');
+  // ── Protocol support ───────────────────────────────────────────
+  if (!sslData.protocols?.tls13) { score -= 15; }
+  if (!sslData.protocols?.tls12) { score -= 10; }
+  if (sslData.protocols?.sslv3) {
+    capScore = 0; issues.push('SSLv3 enabled — critical vulnerability (POODLE)');
   }
+  if (sslData.protocols?.tls10) { score -= 15; issues.push('TLS 1.0 enabled (deprecated)'); }
+  if (sslData.protocols?.tls11) { score -= 10; issues.push('TLS 1.1 enabled (deprecated)'); }
 
-  if (!sslData.protocols?.tls13) score -= 15;
-  if (!sslData.protocols?.tls12) score -= 10;
-
-  if (sslData.pfs?.supported === false) score -= 20;
+  // ── PFS & ciphers ──────────────────────────────────────────────
+  if (sslData.pfs?.supported === false) { score -= 20; issues.push('No Perfect Forward Secrecy'); }
   else if (sslData.pfs?.supported === 'partial') score -= 10;
 
-  if (sslData.vulnerabilities?.BEAST?.vulnerable) { score -= 10; issues.push('Vulnerable to BEAST'); }
-  if (sslData.vulnerabilities?.POODLE?.vulnerable) { score -= 30; issues.push('Vulnerable to POODLE'); }
-  if (sslData.vulnerabilities?.POODLE_TLS?.vulnerable) { score -= 10; issues.push('POODLE TLS'); }
-  if (sslData.vulnerabilities?.SWEET32?.vulnerable) { score -= 20; issues.push('Vulnerable to SWEET32'); }
-  if (sslData.vulnerabilities?.LOGJAM?.vulnerable) { score -= 10; issues.push('Vulnerable to LOGJAM'); }
-  if (sslData.vulnerabilities?.DROWN?.vulnerable) { score -= 30; issues.push('Vulnerable to DROWN'); }
-  if (sslData.vulnerabilities?.FREAK?.vulnerable) { score -= 15; issues.push('Vulnerable to FREAK'); }
-  if (sslData.vulnerabilities?.RC4?.vulnerable) { score -= 25; issues.push('RC4 cipher vulnerable'); }
+  if (sslData.cipherSuites?.usesWeak) { score -= 15; issues.push('Weak cipher suites in use'); }
+  if (sslData.cipherSuites?.supportsRc4 || sslData.cipherSuites?.supports3des) score -= 10;
 
-  if (sslData.cipherSuites?.usesWeak) score -= 15;
-  if (sslData.cipherSuites?.supportsRc4 || sslData.cipherSuites?.supports3des) { score -= 10; }
+  // ── Known vulnerabilities ──────────────────────────────────────
+  if (sslData.vulnerabilities?.BEAST?.vulnerable)     { score -= 10; issues.push('BEAST vulnerability'); }
+  if (sslData.vulnerabilities?.POODLE?.vulnerable)    { score -= 30; capScore = 0; issues.push('POODLE vulnerability'); }
+  if (sslData.vulnerabilities?.POODLE_TLS?.vulnerable){ score -= 10; issues.push('POODLE TLS'); }
+  if (sslData.vulnerabilities?.SWEET32?.vulnerable)   { score -= 20; issues.push('SWEET32 vulnerability'); }
+  if (sslData.vulnerabilities?.LOGJAM?.vulnerable)    { score -= 10; issues.push('LOGJAM vulnerability'); }
+  if (sslData.vulnerabilities?.DROWN?.vulnerable)     { score -= 30; capScore = 0; issues.push('DROWN vulnerability'); }
+  if (sslData.vulnerabilities?.FREAK?.vulnerable)     { score -= 15; issues.push('FREAK vulnerability'); }
+  if (sslData.vulnerabilities?.RC4?.vulnerable)       { score -= 25; issues.push('RC4 vulnerability'); }
 
+  // ── Misc ───────────────────────────────────────────────────────
   if (!sslData.ocsp?.stapling) score -= 5;
 
-  if (sslData.certificate?.chainIssues) score -= sslData.certificate.chainIssues * 10;
-
-  if (sslData.protocols?.sslv3) { score = Math.max(score - 50, 0); issues.push('SSLv3 supported (critical)'); }
-  if (sslData.protocols?.tls10) { score -= 15; issues.push('TLS 1.0 supported (deprecated)'); }
-  if (sslData.protocols?.tls11) { score -= 10; issues.push('TLS 1.1 supported (deprecated)'); }
-
-  return { score: Math.max(0, score), issues };
+  const raw = Math.max(0, score);
+  return { score: capScore !== null ? Math.min(raw, capScore) : raw, issues };
 }
 
 function testTlsProtocol(host, port, protocolVersion, minVersion, maxVersion) {
@@ -1570,29 +1588,74 @@ app.post('/api/ssl', heavyApiLimiter, async (req, res) => {
           keyAlgorithm: cert.keyAlgorithm,
           keyBits: cert.bits,
           signatureAlgorithm: cert.signatureAlgorithm,
-          subjectAltNames: cert.subjectaltname 
+          subjectAltNames: cert.subjectaltname
             ? cert.subjectaltname.split(', ').filter(s => s.startsWith('DNS:')).map(s => s.replace('DNS:', ''))
             : [],
           ocspURI: cert.ocspURI,
-          mustStaple: cert.extKeyUsage?.includes('1.3.6.1.5.5.7.3.1') || false,
+          mustStaple: !!(cert.raw && cert.raw.includes(Buffer.from('2b0601050507011800', 'hex').slice(0, 8))),
         };
 
+        // ── Deep certificate analysis ──────────────────────────────
+        const sigAlgo = cert.signatureAlgorithm || '';
+        const keyBits = cert.bits || 0;
+        const keyAlgo = cert.keyAlgorithm || sigAlgo;
+        const isECKey = /ec|ecdsa/i.test(keyAlgo);
+        const sanList = result.certificate.subjectAltNames;
+
+        result.certificate.sha1Signed = /sha1/i.test(sigAlgo);
+        result.certificate.isWildcard = sanList.some(s => s.startsWith('*.')) || (cert.subject?.CN || '').startsWith('*.');
+        result.certificate.keyType = isECKey ? 'EC' : /rsa/i.test(keyAlgo) ? 'RSA' : keyAlgo || 'Unknown';
+        result.certificate.keyStrength = isECKey
+          ? (keyBits >= 384 ? 'excellent' : keyBits >= 256 ? 'good' : 'weak')
+          : (keyBits >= 4096 ? 'excellent' : keyBits >= 2048 ? 'good' : 'weak');
+
+        // EV = has jurisdictionC or businessCategory in subject; OV = has O; DV = no O
+        const subj = cert.subject || {};
+        result.certificate.certType = (subj.jurisdictionCountry || subj.jurisdictionST || subj.businessCategory)
+          ? 'EV' : subj.O ? 'OV' : 'DV';
+
+        // Validity period (how many days was the cert issued for)
+        result.certificate.validityPeriodDays = Math.round((new Date(cert.valid_to) - new Date(cert.valid_from)) / 864e5);
+        // CAs should not issue certs longer than 398 days (industry standard since 2020)
+        result.certificate.longLivedCert = result.certificate.validityPeriodDays > 398;
+
+        result.certificate.sanCount = sanList.length;
+        result.certificate.issuerCN = cert.issuer?.CN || cert.issuer?.O || 'Unknown';
+
         const chainCerts = [cert, ...certChain];
-        
+
         const fetchedIntermediates = await fetchIntermediateCerts(cert);
-        
+
         const fullChain = [cert, ...fetchedIntermediates];
-        
-        result.certificate.chain = fullChain.map((c, i) => ({
-          type: i === 0 ? 'leaf' : c.isCA || (c.subject?.CN === c.issuer?.CN) ? 'root' : 'intermediate',
-          subject: c.subject ? { CN: c.subject.CN, O: c.subject.O } : null,
-          issuer: c.issuer ? { CN: c.issuer.CN, O: c.issuer.O } : null,
-          validFrom: c.valid_from,
-          validTo: c.valid_to,
-          isCA: c.isCA,
-          fingerprint256: c.fingerprint256,
-          pem: c.PEM || (c.raw ? '-----BEGIN CERTIFICATE-----\n' + c.raw.toString('base64').match(/.{1,64}/g).join('\n') + '\n-----END CERTIFICATE-----' : null),
-        }));
+
+        result.certificate.chain = fullChain.map((c, i) => {
+          const cNow = new Date();
+          const cTo = new Date(c.valid_to);
+          const cFrom = new Date(c.valid_from);
+          const cDays = Math.floor((cTo - cNow) / 864e5);
+          const cSigAlgo = c.signatureAlgorithm || '';
+          const cKeyAlgo = c.keyAlgorithm || cSigAlgo;
+          const cIsEC = /ec|ecdsa/i.test(cKeyAlgo);
+          return {
+            type: i === 0 ? 'leaf' : (c.isCA || c.subject?.CN === c.issuer?.CN) ? 'root' : 'intermediate',
+            subject: c.subject ? { CN: c.subject.CN, O: c.subject.O, C: c.subject.C } : null,
+            issuer: c.issuer ? { CN: c.issuer.CN, O: c.issuer.O } : null,
+            validFrom: c.valid_from,
+            validTo: c.valid_to,
+            daysRemaining: cDays,
+            isExpired: cTo < cNow,
+            isCA: c.isCA,
+            serialNumber: c.serialNumber,
+            fingerprint: c.fingerprint,
+            fingerprint256: c.fingerprint256,
+            keyBits: c.bits,
+            keyType: cIsEC ? 'EC' : 'RSA',
+            signatureAlgorithm: cSigAlgo,
+            sha1Signed: /sha1/i.test(cSigAlgo),
+            ocspURI: c.ocspURI || null,
+            pem: c.PEM || (c.raw ? '-----BEGIN CERTIFICATE-----\n' + c.raw.toString('base64').match(/.{1,64}/g).join('\n') + '\n-----END CERTIFICATE-----' : null),
+          };
+        });
 
         result.certificate.chainIssues = Math.max(0, 2 - fullChain.length);
 
@@ -1600,6 +1663,28 @@ app.post('/api/ssl', heavyApiLimiter, async (req, res) => {
           result.chainValidation.issues.push('Incomplete certificate chain');
         }
         result.chainValidation.complete = fullChain.length >= 2;
+
+        // ── CAA vs issuer cross-check ──────────────────────────────
+        try {
+          const caaResolver = new Resolver();
+          const caaRecords = await caaResolver.resolveCaa(host).catch(() => []);
+          if (caaRecords.length > 0) {
+            const issuers = caaRecords.filter(r => r.issue || r.tag === 'issue' || r.tag === 'issuewild').map(r => (r.value || r.issue || '').toLowerCase().trim());
+            const issuerCN = (cert.issuer?.CN || cert.issuer?.O || '').toLowerCase();
+            // Map issuer names to known CA domains
+            const caaDomainMap = {
+              "let's encrypt": 'letsencrypt.org', 'letsencrypt': 'letsencrypt.org',
+              "digicert": 'digicert.com', "comodo": 'sectigo.com', "sectigo": 'sectigo.com',
+              "globalsign": 'globalsign.com', "entrust": 'entrust.net',
+              "godaddy": 'godaddy.com', "amazon": 'amazonaws.com',
+              "google trust services": 'pki.goog', "google": 'pki.goog',
+              "microsoft": 'microsoft.com', "cloudflare": 'cloudflare.com',
+            };
+            const expectedDomain = Object.entries(caaDomainMap).find(([k]) => issuerCN.includes(k))?.[1] || null;
+            result.certificate.caaMatch = expectedDomain ? issuers.some(i => i === ';' || i.includes(expectedDomain)) : null;
+            result.certificate.caaIssuers = issuers;
+          }
+        } catch (e) {}
 
         const cipher = socket.getCipher();
         const negotiatedProtocol = socket.getProtocol(); // 'TLSv1.3', 'TLSv1.2', etc.
@@ -2490,22 +2575,33 @@ app.post('/api/http', heavyApiLimiter, async (req, res) => {
       result.features.referrerPolicy = true;
     }
 
-    const httpsTest = await fetch(`http://${host}`, { method: 'HEAD', timeout: 5000, redirect: 'follow' });
+    // HTTP/3 detection via Alt-Svc header
+    const altSvc = response.headers['alt-svc'] || '';
+    result.protocols.http3 = /h3[=\-"]/i.test(altSvc);
+    if (result.protocols.http3) {
+      const h3Match = altSvc.match(/h3[=\-"]([^";\s,]+)/i);
+      result.protocols.http3Port = h3Match ? h3Match[1].replace(/[":]/g,'') : '443';
+    }
+
+    const httpsTest = await fetch(`http://${host}`, { method: 'HEAD', signal: AbortSignal.timeout(5000), redirect: 'follow' }).catch(() => null);
     result.httpAvailable = true;
 
     let score = 0;
-    if (result.protocols.http2) score += 20;
-    if (result.compression.brotli) { score += 25; } else if (result.compression.gzip) { score += 15; }
+    if (result.protocols.http3) score += 15; else if (result.protocols.http2) score += 10;
+    if (result.protocols.http2) score += 10;
+    if (result.compression.brotli) { score += 20; } else if (result.compression.gzip) { score += 10; }
     if (result.features.hsts) score += 20;
+    if (result.features.hstsLongTerm) score += 5;
     if (result.features.csp) score += 15;
     if (result.features.xFrameOptions) score += 10;
     if (result.features.referrerPolicy) score += 10;
-    
-    result.score = score;
-    result.rating = score >= 80 ? 'excellent' : score >= 60 ? 'good' : score >= 40 ? 'fair' : 'poor';
+
+    result.score = Math.min(100, score);
+    result.rating = result.score >= 80 ? 'excellent' : result.score >= 60 ? 'good' : result.score >= 40 ? 'fair' : 'poor';
 
     if (!result.protocols.http2) result.recommendations.push('Enable HTTP/2 for better performance');
-    if (!result.compression.brotli && !result.compression.gzip) result.recommendations.push('Enable compression (gzip or Brotli)');
+    if (!result.protocols.http3) result.recommendations.push('Enable HTTP/3 (QUIC) for lower latency on repeat visits');
+    if (!result.compression.brotli && !result.compression.gzip) result.recommendations.push('Enable compression (Brotli preferred over gzip)');
     if (!result.features.hsts) result.recommendations.push('Enable HSTS with long max-age');
     if (!result.features.csp) result.recommendations.push('Add Content Security Policy');
 
@@ -3261,20 +3357,330 @@ app.post('/api/propagation', heavyApiLimiter, async (req, res) => {
   res.json({ domain: host, type: recordType, results });
 });
 
+// ── Subdomain Takeover Detector ───────────────────────────────
+const TAKEOVER_SERVICES = [
+  { service: 'GitHub Pages',  pattern: /\.github\.io$/i,              fingerprint: "there isn't a github pages site here" },
+  { service: 'Heroku',        pattern: /\.herokuapp\.com$/i,          fingerprint: 'no such app' },
+  { service: 'Fastly',        pattern: /\.fastly\.net$|\.fastlylb\.net$/i, fingerprint: 'fastly error: unknown domain' },
+  { service: 'Shopify',       pattern: /\.myshopify\.com$/i,          fingerprint: 'sorry, this shop is currently unavailable' },
+  { service: 'Ghost',         pattern: /\.ghost\.io$/i,               fingerprint: 'the thing you were looking for is no longer here' },
+  { service: 'Netlify',       pattern: /\.netlify\.app$|\.netlify\.com$/i, fingerprint: 'not found - request id' },
+  { service: 'AWS S3',        pattern: /\.s3\.amazonaws\.com$|\.s3-website/i, fingerprint: 'nosuchbucket' },
+  { service: 'Azure',         pattern: /\.azurewebsites\.net$/i,      fingerprint: '404 web site not found' },
+  { service: 'Surge.sh',      pattern: /\.surge\.sh$/i,               fingerprint: 'project not found' },
+  { service: 'Vercel',        pattern: /\.vercel\.app$/i,             fingerprint: 'the deployment could not be found' },
+  { service: 'HubSpot',       pattern: /\.hs-sites\.com$/i,           fingerprint: 'domain not configured' },
+  { service: 'Zendesk',       pattern: /\.zendesk\.com$/i,            fingerprint: 'help center closed' },
+  { service: 'Squarespace',   pattern: /\.squarespace\.com$/i,        fingerprint: 'no such account' },
+  { service: 'Webflow',       pattern: /\.webflow\.io$/i,             fingerprint: "the page you are looking for doesn't exist" },
+  { service: 'Firebase',      pattern: /\.firebaseapp\.com$|\.web\.app$/i, fingerprint: 'the specified bucket does not exist' },
+  { service: 'Pantheon',      pattern: /\.pantheonsite\.io$/i,        fingerprint: 'the gods are wise' },
+  { service: 'Tumblr',        pattern: /\.tumblr\.com$/i,             fingerprint: "there's nothing here" },
+  { service: 'Bitbucket',     pattern: /\.bitbucket\.io$/i,           fingerprint: 'repository not found' },
+];
+
+const TAKEOVER_SUBDOMAINS = ['www','mail','ftp','api','dev','staging','app','beta','docs','blog','admin','portal','cdn','assets','static','help','support','status'];
+
+app.post('/api/subdomain-takeover', heavyApiLimiter, async (req, res) => {
+  const { domain } = req.body || {};
+  if (!domain || typeof domain !== 'string') return res.status(400).json({ error: 'Domain required' });
+  const host = normalizeDomain(domain);
+  if (!host) return res.status(400).json({ error: 'Invalid domain' });
+
+  const resolver = new Resolver({ timeout: 3000, tries: 1 });
+  resolver.setServers(['8.8.8.8', '1.1.1.1']);
+
+  const cnameResults = [];
+  await Promise.allSettled(TAKEOVER_SUBDOMAINS.map(async (sub) => {
+    const fqdn = `${sub}.${host}`;
+    try {
+      const cnames = await resolver.resolveCname(fqdn);
+      const cname = cnames[0];
+      if (!cname) return;
+      const svc = TAKEOVER_SERVICES.find(s => s.pattern.test(cname));
+      const entry = { subdomain: fqdn, cname, service: svc?.service || null, vulnerable: false, checked: !!svc };
+      if (svc) {
+        try {
+          const r = await fetch(`https://${fqdn}`, {
+            signal: AbortSignal.timeout(5000), redirect: 'follow',
+            headers: { 'User-Agent': 'HetOps-DNS-Scanner/5.0' }
+          });
+          const body = (await r.text()).toLowerCase();
+          entry.statusCode = r.status;
+          entry.vulnerable = body.includes(svc.fingerprint) || r.status === 404;
+          if (entry.vulnerable) entry.fingerprintMatch = svc.fingerprint;
+        } catch (e) { entry.fetchError = true; }
+      }
+      cnameResults.push(entry);
+    } catch (e) {}
+  }));
+
+  const vulnerabilities = cnameResults.filter(r => r.vulnerable);
+  res.json({ domain: host, cnamesFound: cnameResults.length, vulnerabilities, results: cnameResults, vulnerable: vulnerabilities.length > 0 });
+});
+
+// ── HSTS Preload ───────────────────────────────────────────────
+app.post('/api/hsts-preload', heavyApiLimiter, async (req, res) => {
+  const { domain } = req.body || {};
+  if (!domain) return res.status(400).json({ error: 'Domain required' });
+  const host = normalizeDomain(domain);
+  if (!host) return res.status(400).json({ error: 'Invalid domain' });
+
+  let preloadStatus = 'unknown';
+  let hstsHeader = null, maxAge = null, includeSubDomains = false, preloadDirective = false;
+
+  try {
+    const pr = await fetch(`https://hstspreload.org/api/v2/status?domain=${encodeURIComponent(host)}`, {
+      signal: AbortSignal.timeout(8000), headers: { 'User-Agent': 'HetOps-DNS-Scanner/5.0' }
+    });
+    if (pr.ok) { const d = await pr.json(); preloadStatus = d.status || 'unknown'; }
+  } catch (e) {}
+
+  try {
+    const sr = await fetch(`https://${host}`, {
+      signal: AbortSignal.timeout(6000), redirect: 'manual',
+      headers: { 'User-Agent': 'HetOps-DNS-Scanner/5.0' }
+    });
+    hstsHeader = sr.headers.get('strict-transport-security');
+    if (hstsHeader) {
+      const m = hstsHeader.match(/max-age=(\d+)/i);
+      if (m) maxAge = parseInt(m[1]);
+      includeSubDomains = /includeSubDomains/i.test(hstsHeader);
+      preloadDirective = /preload/i.test(hstsHeader);
+    }
+  } catch (e) {}
+
+  const eligible = !!(maxAge && maxAge >= 31536000 && includeSubDomains && preloadDirective);
+  res.json({
+    domain: host, preloadStatus, hstsHeader, maxAge,
+    maxAgeDays: maxAge ? Math.floor(maxAge / 86400) : null,
+    includeSubDomains, preloadDirective, eligible,
+    onPreloadList: preloadStatus === 'preloaded',
+    pending: preloadStatus === 'pending',
+  });
+});
+
+// ── CSP Analyzer ───────────────────────────────────────────────
+app.post('/api/csp-analyzer', heavyApiLimiter, async (req, res) => {
+  const { domain } = req.body || {};
+  if (!domain) return res.status(400).json({ error: 'Domain required' });
+  const host = normalizeDomain(domain);
+  if (!host) return res.status(400).json({ error: 'Invalid domain' });
+
+  try {
+    const r = await fetch(`https://${host}`, {
+      signal: AbortSignal.timeout(8000), redirect: 'follow',
+      headers: { 'User-Agent': 'Mozilla/5.0 HetOps-DNS-Scanner/5.0' }
+    });
+    const cspFull = r.headers.get('content-security-policy');
+    const cspRO   = r.headers.get('content-security-policy-report-only');
+    const cspHeader = cspFull || cspRO;
+    const isReportOnly = !cspFull && !!cspRO;
+
+    if (!cspHeader) {
+      return res.json({ domain: host, present: false, grade: 'F', score: 0, issues: ['No Content-Security-Policy header found'], warnings: [], directives: {} });
+    }
+
+    const directives = {};
+    for (const part of cspHeader.split(';').map(p => p.trim()).filter(Boolean)) {
+      const tokens = part.split(/\s+/);
+      directives[tokens[0].toLowerCase()] = tokens.slice(1);
+    }
+
+    const issues = [], warnings = [];
+    let score = 100;
+    const capScore = (cap) => { if (score > cap) score = cap; };
+
+    const def       = directives['default-src'] || [];
+    const scriptSrc = directives['script-src'] || def;
+    const styleSrc  = directives['style-src']  || def;
+
+    if (!directives['default-src'])                      { issues.push("Missing default-src directive"); score -= 15; }
+    if (scriptSrc.includes("'unsafe-inline'"))           { issues.push("script-src allows 'unsafe-inline' — XSS risk"); score -= 25; }
+    if (scriptSrc.includes("'unsafe-eval'"))             { issues.push("script-src allows 'unsafe-eval' — code injection risk"); score -= 20; }
+    if (scriptSrc.includes('*') || def.includes('*'))   { issues.push("Wildcard (*) in script/default-src — overly permissive"); capScore(40); }
+    if (styleSrc.includes("'unsafe-inline'"))            { warnings.push("style-src allows 'unsafe-inline'"); score -= 5; }
+    if (!directives['frame-ancestors'])                  { warnings.push("No frame-ancestors directive (prevents clickjacking)"); score -= 5; }
+    if (!directives['base-uri'])                         { warnings.push("No base-uri directive"); score -= 3; }
+    if (!directives['form-action'])                      { warnings.push("No form-action directive"); score -= 3; }
+    if (isReportOnly)                                    { warnings.push("CSP is report-only — not enforced in production"); score -= 10; }
+
+    score = Math.max(0, Math.min(100, score));
+    const grade = score >= 90 ? 'A+' : score >= 80 ? 'A' : score >= 70 ? 'B' : score >= 60 ? 'C' : score >= 40 ? 'D' : 'F';
+
+    res.json({
+      domain: host, present: true, isReportOnly, grade, score,
+      directives, directiveCount: Object.keys(directives).length,
+      hasNonce: scriptSrc.some(v => v.startsWith("'nonce-")),
+      hasHash: scriptSrc.some(v => /^'sha(256|384|512)-/.test(v)),
+      hasStrictDynamic: scriptSrc.includes("'strict-dynamic'"),
+      issues, warnings, rawHeader: cspHeader,
+    });
+  } catch (e) {
+    res.json({ domain: host, error: e.message });
+  }
+});
+
+// ── Typosquat Detector ─────────────────────────────────────────
+function generateTypos(domain) {
+  const dotIdx = domain.indexOf('.');
+  if (dotIdx < 1) return [];
+  const name = domain.slice(0, dotIdx);
+  const tld  = domain.slice(dotIdx + 1);
+  const typos = new Set();
+
+  for (let i = 0; i < name.length; i++)
+    typos.add(name.slice(0, i) + name.slice(i + 1) + '.' + tld);
+
+  for (let i = 0; i < name.length; i++)
+    typos.add(name.slice(0, i) + name[i] + name[i] + name.slice(i + 1) + '.' + tld);
+
+  for (let i = 0; i < name.length - 1; i++) {
+    const t = name.split(''); [t[i], t[i + 1]] = [t[i + 1], t[i]];
+    typos.add(t.join('') + '.' + tld);
+  }
+
+  for (const [ch, sub] of [['a','4'],['e','3'],['i','1'],['o','0'],['s','5'],['l','1']])
+    if (name.includes(ch)) typos.add(name.replaceAll(ch, sub) + '.' + tld);
+
+  for (const t of ['com','net','org','io','co','app','dev']) if (t !== tld) typos.add(name + '.' + t);
+
+  typos.delete(domain);
+  return [...typos].filter(d => /^[a-z0-9][a-z0-9.-]{0,61}[a-z0-9]\.[a-z]{2,}$/.test(d)).slice(0, 35);
+}
+
+app.post('/api/typosquat', heavyApiLimiter, async (req, res) => {
+  const { domain } = req.body || {};
+  if (!domain) return res.status(400).json({ error: 'Domain required' });
+  const host = normalizeDomain(domain);
+  if (!host) return res.status(400).json({ error: 'Invalid domain' });
+
+  const variants = generateTypos(host);
+  const resolver = new Resolver({ timeout: 2000, tries: 1 });
+  resolver.setServers(['8.8.8.8', '1.1.1.1']);
+
+  const settled = await Promise.allSettled(variants.map(async (v) => {
+    try {
+      const ips = await resolver.resolve4(v);
+      return { domain: v, registered: true, ips };
+    } catch (e) {
+      return { domain: v, registered: false };
+    }
+  }));
+
+  const results = settled.map((r, i) => r.status === 'fulfilled' ? r.value : { domain: variants[i], registered: false });
+  const registered = results.filter(r => r.registered);
+  res.json({ domain: host, total: variants.length, registered: registered.length, results });
+});
+
+// ── IPv6 Reachability ──────────────────────────────────────────
+app.post('/api/ipv6', heavyApiLimiter, async (req, res) => {
+  const { domain } = req.body || {};
+  if (!domain) return res.status(400).json({ error: 'Domain required' });
+  const host = normalizeDomain(domain);
+  if (!host) return res.status(400).json({ error: 'Invalid domain' });
+
+  const resolver = new Resolver({ timeout: 4000, tries: 2 });
+  resolver.setServers(['8.8.8.8', '1.1.1.1']);
+
+  let ipv4 = [], ipv6 = [];
+  try { ipv4 = await resolver.resolve4(host); } catch (e) {}
+  try { ipv6 = await resolver.resolve6(host); } catch (e) {}
+
+  function tryTls(address, family) {
+    return new Promise(resolve => {
+      const opts = { host: address, port: 443, servername: host, timeout: 5000, rejectUnauthorized: false };
+      if (family === 6) opts.family = 6;
+      const sock = tls.connect(opts, () => {
+        const proto = sock.getProtocol();
+        const authErr = sock.authorizationError;
+        sock.destroy();
+        resolve({ success: true, protocol: proto, certValid: !authErr });
+      });
+      sock.on('error', e => resolve({ success: false, error: e.message }));
+      sock.on('timeout', () => { sock.destroy(); resolve({ success: false, error: 'timeout' }); });
+    });
+  }
+
+  const [tlsV4, tlsV6] = await Promise.all([
+    ipv4.length > 0 ? tryTls(ipv4[0], 4) : Promise.resolve(null),
+    ipv6.length > 0 ? tryTls(ipv6[0], 6) : Promise.resolve(null),
+  ]);
+
+  const dualStack = ipv4.length > 0 && ipv6.length > 0;
+  let score = 0;
+  if (ipv6.length > 0) score += 40;
+  if (dualStack) score += 20;
+  if (tlsV6?.success) score += 30;
+  if (tlsV4?.success && tlsV6?.success) score += 10;
+
+  res.json({ domain: host, ipv4, ipv6, dualStack, ipv6Enabled: ipv6.length > 0, tlsV4, tlsV6, score });
+});
+
+// ── DNSSEC Chain Validator ─────────────────────────────────────
+app.post('/api/dnssec-chain', heavyApiLimiter, async (req, res) => {
+  const { domain } = req.body || {};
+  if (!domain) return res.status(400).json({ error: 'Domain required' });
+  const host = normalizeDomain(domain);
+  if (!host) return res.status(400).json({ error: 'Invalid domain' });
+
+  const mkRes = (servers) => { const r = new Resolver({ timeout: 5000, tries: 2 }); r.setServers(servers); return r; };
+  const rMain = mkRes(['8.8.8.8', '1.1.1.1']);
+  const rGoogle = mkRes(['8.8.8.8']);
+  const rCF = mkRes(['1.1.1.1']);
+
+  async function hasRecord(resolver, name, type) {
+    try { const r = await resolver.resolve(name, type); return !!(r && r.length > 0); } catch (e) { return false; }
+  }
+
+  const chain = [], issues = [];
+
+  const hasDNSKEY = await hasRecord(rMain, host, 'DNSKEY');
+  chain.push({ step: 'DNSKEY', domain: host, present: hasDNSKEY, desc: 'Zone signing key(s) at zone apex' });
+  if (!hasDNSKEY) issues.push('No DNSKEY records — DNSSEC not configured');
+
+  const hasDS = await hasRecord(rMain, host, 'DS');
+  const parentZone = host.split('.').slice(1).join('.');
+  chain.push({ step: 'DS', domain: `${host} at ${parentZone}`, present: hasDS, desc: 'Delegation Signer record links parent zone to child' });
+  if (hasDNSKEY && !hasDS) issues.push('DNSKEY exists but no DS at parent — chain of trust is broken');
+
+  const hasRRSIG = await hasRecord(rMain, host, 'RRSIG');
+  chain.push({ step: 'RRSIG', domain: host, present: hasRRSIG, desc: 'Resource Record Signatures (records are signed)' });
+  if (hasDNSKEY && !hasRRSIG) issues.push('DNSKEY present but no RRSIG — zone records may not be signed');
+
+  const hasNSEC = await hasRecord(rMain, host, 'NSEC3') || await hasRecord(rMain, host, 'NSEC');
+  chain.push({ step: 'NSEC/NSEC3', domain: host, present: hasNSEC, desc: 'Authenticated denial of existence' });
+
+  const [g, c] = await Promise.all([hasRecord(rGoogle, host, 'DNSKEY'), hasRecord(rCF, host, 'DNSKEY')]);
+  const consistent = g === c;
+  chain.push({ step: 'Consistency', domain: '8.8.8.8 vs 1.1.1.1', present: consistent, desc: 'DNSSEC data matches across Google and Cloudflare' });
+  if (!consistent) issues.push('DNSSEC inconsistency between resolvers — possible misconfiguration');
+
+  const signed = hasDNSKEY && hasDS && hasRRSIG;
+  const valid  = signed && consistent && issues.length === 0;
+  const status = valid ? 'valid' : signed ? 'partial' : hasDNSKEY ? 'incomplete' : 'unsigned';
+
+  res.json({ domain: host, signed, valid, status, chain, issues,
+    statusMessage: valid ? 'Full DNSSEC chain validated' : signed ? 'DNSSEC configured with issues' : hasDNSKEY ? 'DNSSEC partially configured' : 'DNSSEC not enabled' });
+});
+
 app.get('/api/health', (req, res) => {
   res.json({
     status: 'ok',
     service: 'HetOps DNS Intelligence',
-    version: '5.0.0',
+    version: '6.0.0',
     features: [
       'batchLookup', 'resolverProfiles', 'securityInsights', 'timingMetrics',
       'authoritativeComparison', 'subdomainDiscovery', 'cnameChainTracing',
       'sslAnalysis', 'sslChainValidation', 'sslCipherAnalysis', 'sslOcspCheck',
-      'securityHeadersAnalysis', 'dnssecValidation', 'mtaStsCheck', 'sshfpLookup',
-      'globalPropagation', 'blacklistCheck', 'geoipLookup', 'portScanning',
-      'redirectChain', 'technologyFingerprint', 'httpAnalysis', 'mxSmtpAnalysis',
-      'cookieAnalysis', 'corsAnalysis', 'ipv4Ipv6Check', 'robotsSitemap',
-      'certTransparency', 'emailSecurityAnalysis', 'spfAnalysis', 'dmarcAnalysis', 'dkimDiscovery', 'bimiCheck'
+      'securityHeadersAnalysis', 'dnssecValidation', 'dnssecChainValidation',
+      'mtaStsCheck', 'sshfpLookup', 'globalPropagation', 'blacklistCheck',
+      'geoipLookup', 'portScanning', 'redirectChain', 'technologyFingerprint',
+      'httpAnalysis', 'mxSmtpAnalysis', 'cookieAnalysis', 'corsAnalysis',
+      'ipv4Ipv6Check', 'ipv6Reachability', 'robotsSitemap', 'certTransparency',
+      'emailSecurityAnalysis', 'spfAnalysis', 'dmarcAnalysis', 'dkimDiscovery',
+      'bimiCheck', 'subdomainTakeover', 'hstsPreload', 'cspAnalyzer',
+      'typosquatDetection'
     ]
   });
 });
