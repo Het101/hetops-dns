@@ -1301,14 +1301,14 @@ function analyzeVulnerabilities(protocol, cipherName) {
 }
 
 function calculateSslLabsGrade(score) {
-  if (score >= 100) return { grade: 'A+', color: '#00ff00' };
-  if (score >= 90) return { grade: 'A', color: '#00cc00' };
-  if (score >= 80) return { grade: 'A-', color: '#66cc00' };
-  if (score >= 70) return { grade: 'B', color: '#cccc00' };
-  if (score >= 60) return { grade: 'C', color: '#ff9900' };
-  if (score >= 50) return { grade: 'D', color: '#ff6600' };
-  if (score >= 40) return { grade: 'E', color: '#ff3300' };
-  return { grade: 'F', color: '#ff0000' };
+  if (score >= 100) return { letter: 'A+', color: '#00ff00' };
+  if (score >= 90)  return { letter: 'A',  color: '#00cc00' };
+  if (score >= 80)  return { letter: 'A-', color: '#66cc00' };
+  if (score >= 70)  return { letter: 'B',  color: '#cccc00' };
+  if (score >= 60)  return { letter: 'C',  color: '#ff9900' };
+  if (score >= 50)  return { letter: 'D',  color: '#ff6600' };
+  if (score >= 40)  return { letter: 'E',  color: '#ff3300' };
+  return { letter: 'F', color: '#ff0000' };
 }
 
 function calculateSslLabsScore(sslData) {
@@ -1347,9 +1347,9 @@ function calculateSslLabsScore(sslData) {
 
   if (sslData.certificate?.chainIssues) score -= sslData.certificate.chainIssues * 10;
 
-  if (sslData.protocols?.supportsSslv3) { score = Math.max(score - 50, 0); issues.push('SSLv3 supported (critical)'); }
-  if (sslData.protocols?.supportsTls10) { score -= 15; issues.push('TLS 1.0 supported (deprecated)'); }
-  if (sslData.protocols?.supportsTls11) { score -= 15; issues.push('TLS 1.1 supported (deprecated)'); }
+  if (sslData.protocols?.sslv3) { score = Math.max(score - 50, 0); issues.push('SSLv3 supported (critical)'); }
+  if (sslData.protocols?.tls10) { score -= 15; issues.push('TLS 1.0 supported (deprecated)'); }
+  if (sslData.protocols?.tls11) { score -= 10; issues.push('TLS 1.1 supported (deprecated)'); }
 
   return { score: Math.max(0, score), issues };
 }
@@ -1377,14 +1377,18 @@ function testTlsProtocol(host, port, protocolVersion, minVersion, maxVersion) {
     socket.on('secureConnect', () => {
       clearTimeout(timeout);
       const cipher = socket.getCipher();
-      const cert = socket.getPeerCertificate(true);
+      const negotiatedProtocol = socket.getProtocol(); // e.g. 'TLSv1.3'
       socket.end();
+      // In TLS 1.3, forward secrecy is mandatory — cipher names like
+      // TLS_AES_256_GCM_SHA384 don't contain 'ECDHE' but PFS is always present.
+      const isTls13 = negotiatedProtocol === 'TLSv1.3';
       resolve({
         supported: true,
         protocol: protocolVersion,
+        negotiatedProtocol,
         cipher: cipher?.name,
         bits: cipher?.bits,
-        pfs: /ECDHE|DHE|CHACHA20/i.test(cipher?.name || ''),
+        pfs: isTls13 || /ECDHE|DHE|CHACHA20/i.test(cipher?.name || ''),
       });
     });
 
@@ -1598,17 +1602,34 @@ app.post('/api/ssl', heavyApiLimiter, async (req, res) => {
         result.chainValidation.complete = fullChain.length >= 2;
 
         const cipher = socket.getCipher();
+        const negotiatedProtocol = socket.getProtocol(); // 'TLSv1.3', 'TLSv1.2', etc.
+        const isTls13 = negotiatedProtocol === 'TLSv1.3';
+
+        // If the unrestricted connection negotiated TLS 1.3 but the forced
+        // TLS 1.3-only protocol test failed (e.g. env timeout), mark it supported.
+        if (isTls13 && !result.protocols.tls13) {
+          result.protocols.tls13 = true;
+          const idx = result.protocols.details.findIndex(d => d.protocol === 'TLS 1.3');
+          if (idx !== -1 && !result.protocols.details[idx].supported) {
+            result.protocols.details[idx] = { protocol: 'TLS 1.3', supported: true, cipher: cipher?.name, bits: cipher?.bits, pfs: true };
+          } else if (idx === -1) {
+            result.protocols.details.unshift({ protocol: 'TLS 1.3', supported: true, cipher: cipher?.name, bits: cipher?.bits, pfs: true });
+          }
+        }
+
         if (cipher) {
-          result.pfs.supported = /ECDHE|DHE|CHACHA20/i.test(cipher.name);
+          // TLS 1.3 always has forward secrecy — ephemeral key exchange is mandatory
+          // in the spec. Cipher names like TLS_AES_256_GCM_SHA384 don't say 'ECDHE'
+          // but PFS is implicit. Only check cipher name for TLS 1.2 and below.
+          result.pfs.supported = isTls13 || /ECDHE|DHE|CHACHA20/i.test(cipher.name);
           result.pfs.pfsCiphers = result.protocols.details.filter(d => d.pfs && d.supported).map(d => d.cipher);
           result.pfs.nonPfsCiphers = result.protocols.details.filter(d => !d.pfs && d.supported).map(d => d.cipher);
         }
       }
 
-      const protocol = socket.getProtocol();
       const cipherName = socket.getCipher()?.name;
 
-      result.vulnerabilities = analyzeVulnerabilities(protocol, cipherName);
+      result.vulnerabilities = analyzeVulnerabilities(negotiatedProtocol, cipherName);
 
       if (cert && cert.ocspURI) {
         result.ocsp.stapling = true;
