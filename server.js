@@ -872,17 +872,18 @@ app.post('/api/blacklist-check', heavyApiLimiter, async (req, res) => {
   const host = normalizeDomain(domain);
   if (!host) return res.status(400).json({ error: 'Invalid domain format' });
 
+  // Only include reputable IP-based DNSBLs with low false-positive rates.
+  // Notes on excluded lists:
+  //   xbl/sbl.spamhaus.org — already included inside zen.spamhaus.org (duplicates)
+  //   multi.uribl.com      — URI list, not for IP lookups (always wrong for IPs)
+  //   dnsbl.sorbs.net      — extremely aggressive; lists entire cloud/VPS ranges
+  //   dnsbl-1.uceprotect.net — /24 network-level listing causes false positives for clean IPs
   const blacklists = [
-    'zen.spamhaus.org',          // Spamhaus combined (SBL+XBL+PBL)
-    'xbl.spamhaus.org',          // Spamhaus XBL (exploits, botnets)
-    'sbl.spamhaus.org',          // Spamhaus SBL (spam operations)
-    'b.barracudacentral.org',    // Barracuda
-    'bl.spamcop.net',            // SpamCop
-    'dnsbl.sorbs.net',           // SORBS combined
-    'spam.dnsbl.sorbs.net',      // SORBS spam
-    'dnsbl-1.uceprotect.net',    // UCEProtect Level 1
-    'multi.uribl.com',           // URIBL multi
-    'all.s5h.net',               // s5h list
+    'zen.spamhaus.org',       // Spamhaus combined (SBL + XBL + PBL) — most authoritative
+    'b.barracudacentral.org', // Barracuda Reputation Block List
+    'bl.spamcop.net',         // SpamCop DNSBL
+    'psbl.surriel.com',       // Passive Spam Block List — low false-positive rate
+    'ix.dnsbl.manitu.net',    // Nixspam — reputable, low false positives
   ];
   const resolver = new Resolver({ timeout: 3000, tries: 1 });
   let ips = [];
