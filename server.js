@@ -17,15 +17,27 @@ function fetchIntermediateCerts(leafCert, timeout = 5000) {
     const visited = new Set();
     
     function certToObject(cert) {
+      // Normalise subject/issuer: X509Certificate gives strings, getPeerCertificate gives objects.
+      // Store the raw value so callers can handle both forms.
+      const validFrom = cert.validFrom ?? cert.valid_from;
+      const validTo   = cert.validTo   ?? cert.valid_to;
       return {
         subject: cert.subject,
-        issuer: cert.issuer,
-        valid_from: cert.validFrom,
-        valid_to: cert.validTo,
-        isCA: cert.isCA,
+        issuer:  cert.issuer,
+        valid_from: validFrom,
+        valid_to:   validTo,
+        isCA: cert.ca ?? cert.isCA,          // X509Certificate uses .ca; old API uses .isCA
         fingerprint256: cert.fingerprint256,
-        serialNumber: cert.serialNumber,
-        subjectaltname: cert.subjectAltName,
+        fingerprint:    cert.fingerprint,
+        serialNumber:   cert.serialNumber,
+        subjectaltname: cert.subjectAltName ?? cert.subjectaltname,
+        signatureAlgorithm: cert.signatureAlgorithm,
+        infoAccess: cert.infoAccess,         // needed so getAIAUrl works on recursive calls
+        keyAlgorithm: cert.keyAlgorithm,
+        bits: cert.bits,
+        ocspURI: cert.infoAccess
+          ? (cert.infoAccess.match(/OCSP[^:]*:\s*(https?:\/\/[^\n]+)/i)?.[1]?.trim() ?? null)
+          : null,
         PEM: cert.PEM,
         raw: cert.raw,
       };
@@ -123,26 +135,38 @@ function fetchIntermediateCerts(leafCert, timeout = 5000) {
       });
     }
     
+    // X509Certificate.subject/issuer are multiline strings ("CN=WE1\nO=...\n").
+    // getPeerCertificate() returns objects with .CN, .O etc.
+    // We must handle both when checking self-signed status.
+    function isCertSelfSigned(cert) {
+      if (!cert) return false;
+      const sub = cert.subject;
+      const iss = cert.issuer;
+      if (typeof sub === 'string' && typeof iss === 'string') {
+        return sub.trim() === iss.trim();
+      }
+      // Object format (getPeerCertificate)
+      if (sub && iss && sub.CN && iss.CN) return sub.CN === iss.CN;
+      return false;
+    }
+
     async function buildChain(currentCert, depth = 0) {
       if (!currentCert || depth > 5) return;
-      
-      const isSelfSigned = currentCert.subject?.CN === currentCert.issuer?.CN;
-      const isRootCA = currentCert.isCA === true || isSelfSigned;
-      
-      if (isRootCA && depth > 0) {
+
+      // Only treat as root (stop) if truly self-signed — NOT just any CA cert.
+      // Intermediate CAs also have isCA=true but are NOT self-signed.
+      if (isCertSelfSigned(currentCert) && depth > 0) {
         intermediates.push(certToObject(currentCert));
         return;
       }
-      
+
       const aiaUrl = getAIAUrl(currentCert);
       if (aiaUrl) {
         const nextCert = await fetchCert(aiaUrl);
         if (nextCert) {
-          const nextIsSelfSigned = nextCert.subject?.CN === nextCert.issuer?.CN;
-          if (nextCert.isCA === true || nextIsSelfSigned) {
-            intermediates.push(certToObject(nextCert));
-          } else {
-            intermediates.push(certToObject(nextCert));
+          intermediates.push(certToObject(nextCert));
+          // Continue up the chain unless this cert is the root (self-signed)
+          if (!isCertSelfSigned(nextCert)) {
             await buildChain(nextCert, depth + 1);
           }
         }
@@ -1630,21 +1654,38 @@ app.post('/api/ssl', heavyApiLimiter, async (req, res) => {
 
         result.certificate.chain = fullChain.map((c, i) => {
           const cNow = new Date();
-          const cTo = new Date(c.valid_to);
-          const cFrom = new Date(c.valid_from);
+          const cTo = new Date(c.valid_to || c.validTo);
           const cDays = Math.floor((cTo - cNow) / 864e5);
           const cSigAlgo = c.signatureAlgorithm || '';
           const cKeyAlgo = c.keyAlgorithm || cSigAlgo;
           const cIsEC = /ec|ecdsa/i.test(cKeyAlgo);
+
+          // Normalise subject/issuer — may be a string (X509Certificate) or object (getPeerCertificate)
+          function parseDN(dn) {
+            if (!dn) return {};
+            if (typeof dn === 'object') return dn;
+            const out = {};
+            for (const line of dn.split('\n')) {
+              const eq = line.indexOf('=');
+              if (eq > 0) out[line.slice(0, eq).trim()] = line.slice(eq + 1).trim();
+            }
+            return out;
+          }
+          const subj = parseDN(c.subject);
+          const issr = parseDN(c.issuer);
+          const selfSigned = subj.CN && issr.CN ? subj.CN === issr.CN
+            : typeof c.subject === 'string' && typeof c.issuer === 'string'
+              ? c.subject.trim() === c.issuer.trim() : false;
+
           return {
-            type: i === 0 ? 'leaf' : (c.isCA || c.subject?.CN === c.issuer?.CN) ? 'root' : 'intermediate',
-            subject: c.subject ? { CN: c.subject.CN, O: c.subject.O, C: c.subject.C } : null,
-            issuer: c.issuer ? { CN: c.issuer.CN, O: c.issuer.O } : null,
-            validFrom: c.valid_from,
-            validTo: c.valid_to,
+            type: i === 0 ? 'leaf' : selfSigned ? 'root' : 'intermediate',
+            subject: subj,
+            issuer: issr,
+            validFrom: c.valid_from || c.validFrom,
+            validTo: c.valid_to || c.validTo,
             daysRemaining: cDays,
             isExpired: cTo < cNow,
-            isCA: c.isCA,
+            isCA: !!(c.isCA ?? c.ca),
             serialNumber: c.serialNumber,
             fingerprint: c.fingerprint,
             fingerprint256: c.fingerprint256,
