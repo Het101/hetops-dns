@@ -1,11 +1,13 @@
 {
   "name": "hetops-dns",
-  "version": "2.0.0",
-  "description": "HetOps DNS Intelligence — Domain analysis, SSL inspection, propagation checks, WHOIS, security auditing",
+  "version": "5.0.0",
+  "description": "HetOps DNS Intelligence — SSL Labs replacement with full TLS analysis, vulnerability detection, certificate chain validation, and comprehensive security auditing",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "dev": "nodemon server.js"
+    "dev": "nodemon server.js",
+    "lint": "node -c server.js",
+    "test": "echo \"No tests configured\""
   },
   "dependencies": {
     "express": "^4.18.2",

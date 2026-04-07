@@ -700,6 +700,7 @@
           <div class="score-lbl">Health Score</div>
         </div>
         <div class="grade-num" id="gradeLetter"></div>
+        <button onclick="exportResults()" title="Export all results as JSON" style="background:rgba(255,255,255,.05);border:1px solid var(--border);color:var(--text-muted);padding:8px 14px;border-radius:10px;font-size:12px;font-weight:600;cursor:pointer;font-family:'Space Grotesk',sans-serif;transition:all .2s;white-space:nowrap" onmouseover="this.style.background='rgba(16,185,129,.12)';this.style.borderColor='var(--brand-border)';this.style.color='var(--brand)'" onmouseout="this.style.background='rgba(255,255,255,.05)';this.style.borderColor='var(--border)';this.style.color='var(--text-muted)'">↓ Export JSON</button>
       </div>
     </div>
 
@@ -725,11 +726,24 @@
 
     <!-- Tabs -->
     <div class="tabs-row">
-      <button class="tab-btn active" id="tab-dns"         onclick="tab('dns')">DNS Records</button>
+      <button class="tab-btn active" id="tab-dns"         onclick="tab('dns')">DNS</button>
       <button class="tab-btn"        id="tab-whois"       onclick="tab('whois')">WHOIS</button>
-      <button class="tab-btn"        id="tab-ssl"         onclick="tab('ssl')">SSL / TLS</button>
+      <button class="tab-btn"        id="tab-ssl"         onclick="tab('ssl')">SSL</button>
       <button class="tab-btn"        id="tab-security"    onclick="tab('security')">Security</button>
+      <button class="tab-btn"        id="tab-emailsec"    onclick="tab('emailsec')">Email Auth</button>
       <button class="tab-btn"        id="tab-propagation" onclick="tab('propagation')">Propagation</button>
+      <button class="tab-btn"        id="tab-headers"     onclick="tab('headers')">Headers</button>
+      <button class="tab-btn"        id="tab-dnssec"      onclick="tab('dnssec')">DNSSEC</button>
+      <button class="tab-btn"        id="tab-ocsp"        onclick="tab('ocsp')">OCSP</button>
+      <button class="tab-btn"        id="tab-mtasts"      onclick="tab('mtasts')">MTA-STS</button>
+      <button class="tab-btn"        id="tab-mx"          onclick="tab('mx')">MX</button>
+      <button class="tab-btn"        id="tab-trace"       onclick="tab('trace')">Trace</button>
+      <button class="tab-btn"        id="tab-tech"        onclick="tab('tech')">Tech</button>
+      <button class="tab-btn"        id="tab-http"        onclick="tab('http')">HTTP</button>
+      <button class="tab-btn"        id="tab-redirect"    onclick="tab('redirect')">Redirect</button>
+      <button class="tab-btn"        id="tab-cors"        onclick="tab('cors')">CORS</button>
+      <button class="tab-btn"        id="tab-robots"      onclick="tab('robots')">Robots</button>
+      <button class="tab-btn"        id="tab-ct"          onclick="tab('ct')">CT Logs</button>
       <button class="tab-btn"        id="tab-geoip"       onclick="tab('geoip')">GeoIP</button>
       <button class="tab-btn"        id="tab-ports"       onclick="tab('ports')">Ports</button>
     </div>
@@ -771,6 +785,72 @@
         <div class="card"><div class="load-box pulse-anim"><div class="load-spinner"></div>Scanning common ports…</div></div>
       </div>
     </div>
+    <div id="pane-headers" style="display:none">
+      <div id="headersContent">
+        <div class="card"><div class="load-box pulse-anim"><div class="load-spinner"></div>Analyzing security headers…</div></div>
+      </div>
+    </div>
+    <div id="pane-dnssec" style="display:none">
+      <div id="dnssecContent">
+        <div class="card"><div class="load-box pulse-anim"><div class="load-spinner"></div>Checking DNSSEC configuration…</div></div>
+      </div>
+    </div>
+    <div id="pane-ocsp" style="display:none">
+      <div id="ocspContent">
+        <div class="card"><div class="load-box pulse-anim"><div class="load-spinner"></div>Checking certificate revocation status…</div></div>
+      </div>
+    </div>
+    <div id="pane-mtasts" style="display:none">
+      <div id="mtastsContent">
+        <div class="card"><div class="load-box pulse-anim"><div class="load-spinner"></div>Checking MTA-STS and DANE…</div></div>
+      </div>
+    </div>
+    <div id="pane-redirect" style="display:none">
+      <div id="redirectContent">
+        <div class="card"><div class="load-box pulse-anim"><div class="load-spinner"></div>Tracing redirect chain…</div></div>
+      </div>
+    </div>
+    <div id="pane-tech" style="display:none">
+      <div id="techContent">
+        <div class="card"><div class="load-box pulse-anim"><div class="load-spinner"></div>Detecting technologies…</div></div>
+      </div>
+    </div>
+    <div id="pane-http" style="display:none">
+      <div id="httpContent">
+        <div class="card"><div class="load-box pulse-anim"><div class="load-spinner"></div>Analyzing HTTP features…</div></div>
+      </div>
+    </div>
+    <div id="pane-mx" style="display:none">
+      <div id="mxContent">
+        <div class="card"><div class="load-box pulse-anim"><div class="load-spinner"></div>Analyzing MX servers…</div></div>
+      </div>
+    </div>
+    <div id="pane-trace" style="display:none">
+      <div id="traceContent">
+        <div class="card"><div class="load-box pulse-anim"><div class="load-spinner"></div>Checking connectivity…</div></div>
+      </div>
+    </div>
+    <div id="pane-cors" style="display:none">
+      <div id="corsContent">
+        <div class="card"><div class="load-box pulse-anim"><div class="load-spinner"></div>Analyzing CORS policy…</div></div>
+      </div>
+    </div>
+    <div id="pane-robots" style="display:none">
+      <div id="robotsContent">
+        <div class="card"><div class="load-box pulse-anim"><div class="load-spinner"></div>Checking robots.txt…</div></div>
+      </div>
+    </div>
+    <div id="pane-ct" style="display:none">
+      <div id="ctContent">
+        <div class="card"><div class="load-box pulse-anim"><div class="load-spinner"></div>Checking Certificate Transparency…</div></div>
+      </div>
+    </div>
+
+    <div id="pane-emailsec" style="display:none">
+      <div id="emailsecContent">
+        <div class="card"><div class="load-box pulse-anim"><div class="load-spinner"></div>Analyzing email authentication…</div></div>
+      </div>
+    </div>
 
   </div><!-- /results -->
 </div><!-- /container -->
@@ -783,7 +863,7 @@
 
 <script>
 // ── State ──────────────────────────────────────────────────────
-const S = { dns:null, whois:null, ssl:null, geoip:null, ports:null, bl:null, prop:null };
+const S = { dns:null, whois:null, ssl:null, geoip:null, ports:null, bl:null, prop:null, headers:null, dnssec:null, ocsp:null, mtasts:null, redirect:null, tech:null, http:null, mx:null, trace:null, cors:null, robots:null, ct:null, emailsec:null };
 
 // ── Record type colour map ─────────────────────────────────────
 const TC = {
@@ -860,6 +940,21 @@ async function runLookup(){
   $('propContent').innerHTML='<div class="card"><div class="load-box pulse-anim">'+sp+'Checking global propagation…</div></div>';
   $('geoContent').innerHTML='<div class="card"><div class="load-box pulse-anim">'+sp+'Resolving GeoIP…</div></div>';
   $('portsContent').innerHTML='<div class="card"><div class="load-box pulse-anim">'+sp+'Scanning common ports…</div></div>';
+  $('headersContent').innerHTML='<div class="card"><div class="load-box pulse-anim">'+sp+'Analyzing security headers…</div></div>';
+  $('dnssecContent').innerHTML='<div class="card"><div class="load-box pulse-anim">'+sp+'Checking DNSSEC configuration…</div></div>';
+  $('ocspContent').innerHTML='<div class="card"><div class="load-box pulse-anim">'+sp+'Checking certificate revocation status…</div></div>';
+  $('mtastsContent').innerHTML='<div class="card"><div class="load-box pulse-anim">'+sp+'Checking MTA-STS and DANE…</div></div>';
+  $('redirectContent').innerHTML='<div class="card"><div class="load-box pulse-anim">'+sp+'Tracing redirect chain…</div></div>';
+  $('techContent').innerHTML='<div class="card"><div class="load-box pulse-anim">'+sp+'Detecting technologies…</div></div>';
+  $('httpContent').innerHTML='<div class="card"><div class="load-box pulse-anim">'+sp+'Analyzing HTTP features…</div></div>';
+  $('mxContent').innerHTML='<div class="card"><div class="load-box pulse-anim">'+sp+'Analyzing MX servers…</div></div>';
+  $('traceContent').innerHTML='<div class="card"><div class="load-box pulse-anim">'+sp+'Checking connectivity…</div></div>';
+  $('corsContent').innerHTML='<div class="card"><div class="load-box pulse-anim">'+sp+'Analyzing CORS policy…</div></div>';
+  $('robotsContent').innerHTML='<div class="card"><div class="load-box pulse-anim">'+sp+'Checking robots.txt…</div></div>';
+  $('ctContent').innerHTML='<div class="card"><div class="load-box pulse-anim">'+sp+'Checking Certificate Transparency…</div></div>';
+  $('ocspContent').innerHTML='<div class="card"><div class="load-box pulse-anim">'+sp+'Checking certificate revocation…</div></div>';
+  $('mtastsContent').innerHTML='<div class="card"><div class="load-box pulse-anim">'+sp+'Checking MTA-STS and DANE…</div></div>';
+  $('emailsecContent').innerHTML='<div class="card"><div class="load-box pulse-anim">'+sp+'Analyzing email authentication…</div></div>';
 
   Object.keys(S).forEach(k=>S[k]=null);
   tab('dns');
@@ -874,14 +969,40 @@ async function go(domain){
       .then(r=>r.json()).then(d=>{ S.whois=d; renderWhois(d); }),
     fetch('/api/ssl',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({domain})})
       .then(r=>r.json()).then(d=>{ S.ssl=d; renderSsl(d); sslStat(d); score(); }),
-    fetch('/api/geoip',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({domain})})
-      .then(r=>r.json()).then(d=>{ S.geoip=d; renderGeo(d); }),
-    fetch('/api/port-scan',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({domain})})
-      .then(r=>r.json()).then(d=>{ S.ports=d; renderPorts(d); }),
+    fetch('/api/security-headers',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({domain})})
+      .then(r=>r.json()).then(d=>{ S.headers=d; renderHeaders(d); }),
+    fetch('/api/dnssec',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({domain})})
+      .then(r=>r.json()).then(d=>{ S.dnssec=d; renderDnssec(d); }),
     fetch('/api/blacklist-check',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({domain})})
       .then(r=>r.json()).then(d=>{ S.bl=d; blStat(d); renderSec(); score(); }),
     fetch('/api/propagation',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({domain,type:'A'})})
       .then(r=>r.json()).then(d=>{ S.prop=d; renderProp(d); }),
+    fetch('/api/mx-smtp',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({domain})})
+      .then(r=>r.json()).then(d=>{ S.mx=d; renderMx(d); }),
+    fetch('/api/trace',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({domain})})
+      .then(r=>r.json()).then(d=>{ S.trace=d; renderTrace(d); }),
+    fetch('/api/tech',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({domain})})
+      .then(r=>r.json()).then(d=>{ S.tech=d; renderTech(d); }),
+    fetch('/api/http',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({domain})})
+      .then(r=>r.json()).then(d=>{ S.http=d; renderHttp(d); }),
+    fetch('/api/redirect',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({domain})})
+      .then(r=>r.json()).then(d=>{ S.redirect=d; renderRedirect(d); }),
+    fetch('/api/cors',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({domain})})
+      .then(r=>r.json()).then(d=>{ S.cors=d; renderCors(d); }),
+    fetch('/api/robots',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({domain})})
+      .then(r=>r.json()).then(d=>{ S.robots=d; renderRobots(d); }),
+    fetch('/api/cert-transparency',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({domain})})
+      .then(r=>r.json()).then(d=>{ S.ct=d; renderCt(d); }),
+    fetch('/api/geoip',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({domain})})
+      .then(r=>r.json()).then(d=>{ S.geoip=d; renderGeo(d); score(); }),
+    fetch('/api/port-scan',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({domain})})
+      .then(r=>r.json()).then(d=>{ S.ports=d; renderPorts(d); }),
+    fetch('/api/ocsp',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({domain})})
+      .then(r=>r.json()).then(d=>{ S.ocsp=d; renderOcsp(d); }),
+    fetch('/api/mta-sts',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({domain})})
+      .then(r=>r.json()).then(d=>{ S.mtasts=d; renderMtasts(d); }),
+    fetch('/api/email-security',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({domain})})
+      .then(r=>r.json()).then(d=>{ S.emailsec=d; renderEmailSec(d); emailSecStat(d); score(); }),
   ]);
 }
 
@@ -1000,7 +1121,7 @@ function parseWhois(raw){
   return o;
 }
 
-// ── Render: SSL ────────────────────────────────────────────────
+// ── Render: SSL (SSL Labs Style) ─────────────────────────────────
 function renderSsl(data){
   if(data.error){
     $('sslContent').innerHTML=`<div class="card" style="padding:24px;display:flex;align-items:center;gap:16px">
@@ -1009,48 +1130,124 @@ function renderSsl(data){
       <div style="font-size:12px;color:var(--text-muted);margin-top:4px;font-family:'JetBrains Mono',monospace">${esc(data.error)}</div></div>
     </div>`; return;
   }
-  const days=data.daysRemaining;
+  
+  const cert=data.certificate||data;
+  const prot=data.protocols||{};
+  const vuln=data.vulnerabilities||{};
+  const pfs=data.pfs||{};
+  const chain=data.certificate?.chain||cert.chain||[];
+  const sim=data.handshakeSimulations||[];
+  
+  const days=cert.daysRemaining;
   const dc=days>90?'var(--ok)':days>30?'var(--warn)':'var(--err)';
-  const grade=data.valid&&days>0?(days>90?'A':days>30?'B':'C'):'F';
-  const gc=grade==='A'?'var(--ok)':grade==='B'?'#a3e635':grade==='C'?'var(--warn)':'var(--err)';
-  const sans=data.subjectAltNames||[];
-  const sanHtml=sans.slice(0,12).map(s=>`<span class="pill">${esc(s)}</span>`).join('');
-  const sanMore=sans.length>12?`<span class="pill accent">+${sans.length-12} more</span>`:'';
-  $('sslContent').innerHTML=`<div class="ssl-grid">
-    <div class="card" style="padding:24px">
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:20px;padding-bottom:20px;border-bottom:1px solid var(--border)">
-        <div>
-          <div class="sec-label" style="padding:0 0 8px">SSL Grade</div>
-          <div style="font-family:'Plus Jakarta Sans',sans-serif;font-size:58px;font-weight:900;color:${gc};line-height:1;text-shadow:0 0 40px ${gc}55">${grade}</div>
+  const grade=data.grade||{letter:'F',score:0,color:'var(--err)'};
+  const gc=grade.color||'var(--err)';
+  
+  const protHtml=prot.details?.map(p=>`<span class="pill ${p.supported?(p.protocol?.includes('1.3')?'ok':p.protocol?.includes('1.2')?'ok':'warn'):'err'}">${p.protocol||'Unknown'}</span>`).join('')||'';
+  
+  const vulnHtml=Object.entries(vuln).filter(([,v])=>v.vulnerable).map(([k,v])=>`<div style="padding:6px 10px;background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.3);border-radius:6px;margin:4px 0">
+    <span style="color:var(--err);font-weight:600">⚠ ${esc(k)}</span>
+    <div style="font-size:11px;color:var(--text-muted);margin-top:2px">${esc(v.details||'Vulnerable')}</div>
+  </div>`).join('');
+  
+  const chainPemData = chain.map(c => c.pem).filter(Boolean).join('\n');
+  const chainHtml=chain.map((c,i)=>{
+    const typeColor=i===0?'var(--accent)':i===chain.length-1?'var(--brand)':'var(--purple)';
+    const typeLabel=c.type==='leaf'?'Leaf':c.type==='root'?'Root':'Intermediate';
+    const expired=new Date(c.validTo)<new Date();
+    return `<div style="padding:12px 14px;border-bottom:1px solid rgba(255,255,255,.05);${i===0?'background:rgba(6,182,212,.05)':''}">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:6px">
+        <div style="display:flex;align-items:center;gap:8px">
+          <span class="pill" style="background:${typeColor}22;border-color:${typeColor}44;color:${typeColor};font-size:9px">${typeLabel}</span>
+          ${c.subject?.CN||c.subject?.O?`<span style="font-weight:600;font-size:12px">${esc(c.subject.CN||c.subject.O)}</span>`:''}
         </div>
-        <div>
-          <div class="sec-label" style="padding:0 0 8px">Days Remaining</div>
-          <div style="font-family:'JetBrains Mono',monospace;font-size:32px;font-weight:700;color:${dc};line-height:1">${days>0?days:'EXPIRED'}</div>
-        </div>
+        ${c.pem?`<button onclick="downloadCert('${i}')" style="background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);color:var(--text-muted);padding:3px 8px;border-radius:4px;font-size:10px;cursor:pointer">↓ PEM</button>`:''}
       </div>
-      ${irow('Valid',data.valid?'Yes ✓':'No',data.valid?'var(--ok)':'var(--err)')}
-      ${irow('Protocol',data.protocol||'—')}
-      ${irow('Cipher',data.cipher?.name||'—')}
-      ${irow('Suite',data.cipher?.standardName||'—')}
-      ${irow('Key Size',data.keyBits?data.keyBits+' bits':'—')}
+      ${c.issuer?.CN||c.issuer?.O?`<div style="font-size:10px;color:var(--text-muted)">→ Issued by: ${esc(c.issuer.CN||c.issuer.O)}</div>`:''}
+      ${c.validFrom?`<div style="font-size:10px;color:var(--text-muted);margin-top:4px">Valid: ${esc(c.validFrom)}</div>`:''}
+      ${c.validTo?`<div style="font-size:10px;color:${expired?'var(--err)':'var(--ok)'};margin-top:2px">→ Expires: ${esc(c.validTo)}${expired?' (EXPIRED)':''}</div>`:''}
+      ${c.fingerprint256?`<div style="font-size:9px;font-family:'JetBrains Mono',monospace;color:var(--text-faint);margin-top:4px;word-break:break-all">SHA-256: ${esc(c.fingerprint256)}</div>`:''}
+    </div>`;
+  }).join('');
+  
+  const simHtml=sim.map(s=>`<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid rgba(255,255,255,.05)">
+    <span style="font-size:12px">${esc(s.client)}</span>
+    <div style="display:flex;gap:8px;align-items:center">
+      <span class="pill ${s.supported?'ok':'err'}">${s.protocol||'Failed'}</span>
+      ${s.pfs?'<span class="pill" style="background:rgba(34,197,94,.1);color:var(--ok)">PFS</span>':''}
     </div>
-    <div class="card" style="padding:24px">
-      <div style="font-size:13px;font-weight:600;margin-bottom:16px">Certificate Details</div>
-      ${irow('Issued To',data.subject?.CN||data.subject?.O||'—')}
-      ${irow('Issued By',data.issuer?.O||data.issuer?.CN||'—')}
-      ${irow('Valid From',data.validFrom||'—')}
-      ${irow('Valid To',data.validTo||'—',dc)}
-      ${irow('Serial',data.serialNumber||'—')}
+  </div>`).join('');
+  
+  const recs=data.recommendations||[];
+  const recsHtml=recs.map(r=>`<div style="font-size:12px;color:var(--text-muted);padding:6px 10px;background:rgba(245,158,11,.06);border-radius:6px;margin:4px 0">→ ${esc(r)}</div>`).join('');
+  
+  const sans=cert.subjectAltNames||[];
+  const sanHtml=sans.slice(0,10).map(s=>`<span class="pill">${esc(s)}</span>`).join('');
+  
+  $('sslContent').innerHTML=`<div style="display:grid;grid-template-columns:280px 1fr;gap:14px">
+    <div class="card" style="padding:24px;text-align:center">
+      <div style="font-size:10px;font-weight:700;color:var(--text-faint);letter-spacing:.1em;margin-bottom:16px">SSL GRADE</div>
+      <div style="font-family:'Plus Jakarta Sans',sans-serif;font-size:72px;font-weight:900;color:${gc};line-height:1;text-shadow:0 0 50px ${gc}55">${grade.letter||'F'}</div>
+      <div style="font-size:14px;color:var(--text-muted);margin-top:8px">Score: ${grade.score||0}/100</div>
+      <div style="margin-top:20px;padding:12px;background:rgba(255,255,255,.03);border-radius:8px">
+        <div style="font-size:10px;color:var(--text-faint);margin-bottom:8px">Certificate</div>
+        <div style="font-size:32px;font-weight:700;color:${days>30?'var(--ok)':days>0?'var(--warn)':'var(--err)'}">${days>0?days:'✗'}</div>
+        <div style="font-size:11px;color:var(--text-muted)">days remaining</div>
+      </div>
     </div>
-    ${sans.length?`<div class="card" style="padding:20px;grid-column:1/-1">
-      <div style="font-size:13px;font-weight:600;margin-bottom:12px">Subject Alternative Names <span style="font-size:11px;color:var(--text-muted);font-weight:400">${sans.length} total</span></div>
-      <div style="display:flex;flex-wrap:wrap;gap:8px">${sanHtml}${sanMore}</div>
-    </div>`:''}
-    ${data.fingerprint256?`<div class="card" style="padding:16px;grid-column:1/-1">
-      <div class="sec-label" style="padding:0 0 8px">SHA-256 Fingerprint</div>
-      <div style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--text-muted);word-break:break-all">${esc(data.fingerprint256)}</div>
-    </div>`:''}
-  </div>`;
+    <div>
+      <div class="card" style="padding:16px;margin-bottom:14px">
+        <div style="font-size:11px;font-weight:600;color:var(--text-faint);margin-bottom:12px;text-transform:uppercase;letter-spacing:.05em">Protocol Support</div>
+        <div style="display:flex;flex-wrap:wrap;gap:8px">
+          ${prot.tls13?'<span class="pill ok">TLS 1.3 ✓</span>':'<span class="pill" style="background:rgba(239,68,68,.1);color:var(--err)">TLS 1.3 ✗</span>'}
+          ${prot.tls12?'<span class="pill ok">TLS 1.2 ✓</span>':'<span class="pill warn">TLS 1.2 ✗</span>'}
+          ${prot.tls11?'<span class="pill warn">TLS 1.1 ⚠</span>':''}
+          ${prot.tls10?'<span class="pill warn">TLS 1.0 ⚠</span>':''}
+          ${prot.sslv3?'<span class="pill err">SSL 3.0 ✗</span>':''}
+        </div>
+        ${pfs.supported?'<div style="margin-top:12px"><span class="pill ok">✓ Perfect Forward Secrecy</span></div>':pfs.supported===false?'<div style="margin-top:12px"><span class="pill warn">⚠ No Perfect Forward Secrecy</span></div>':''}
+      </div>
+      
+      <div class="card" style="padding:16px;margin-bottom:14px">
+        <div style="font-size:11px;font-weight:600;color:var(--text-faint);margin-bottom:12px;text-transform:uppercase;letter-spacing:.05em">Certificate Details</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+          <div><span style="font-size:10px;color:var(--text-muted)">Subject</span><div style="font-size:12px;font-weight:600">${esc(cert.subject?.CN||cert.subject?.O||cert.subject?.commonName||'—')}</div></div>
+          <div><span style="font-size:10px;color:var(--text-muted)">Issuer</span><div style="font-size:12px">${esc(cert.issuer?.O||cert.issuer?.CN||'—')}</div></div>
+          <div><span style="font-size:10px;color:var(--text-muted)">Valid From</span><div style="font-size:12px">${esc(cert.validFrom||'—')}</div></div>
+          <div><span style="font-size:10px;color:var(--text-muted)">Valid To</span><div style="font-size:12px;color:${dc}">${esc(cert.validTo||'—')}</div></div>
+          <div><span style="font-size:10px;color:var(--text-muted)">Key</span><div style="font-size:12px">${cert.keyBits?cert.keyBits+' bit '+esc(cert.keyAlgorithm||cert.signatureAlgorithm||'').split(' ')[0]:'—'}</div></div>
+          <div><span style="font-size:10px;color:var(--text-muted)">Chain</span><div style="font-size:12px;color:${chain.length>=2?'var(--ok)':'var(--warn)'}">${chain.length>=2?'Complete':'Incomplete'}</div></div>
+        </div>
+        ${sans.length?`<div style="margin-top:12px"><span style="font-size:10px;color:var(--text-muted);display:block;margin-bottom:6px">SANs (${sans.length})</span><div style="display:flex;flex-wrap:wrap;gap:4px">${sanHtml}${sans.length>10?'<span class="pill accent">+'+(sans.length-10)+'</span>':''}</div></div>`:''}
+        ${cert.fingerprint256?`<div style="margin-top:12px"><span style="font-size:10px;color:var(--text-muted)">SHA-256</span><div style="font-size:10px;font-family:'JetBrains Mono',monospace;color:var(--text-muted);word-break:break-all;margin-top:2px">${esc(cert.fingerprint256)}</div></div>`:''}
+      </div>
+    </div>
+  </div>
+  
+  <div class="dns-grid">
+    <div class="card dns-card">
+      <div class="dns-card-head" style="display:flex;justify-content:space-between;align-items:center"><div class="dns-card-title">🔗 Certificate Chain (${chain.length})</div>${chainPemData?`<button onclick="downloadFullChain()" style="background:var(--brand-subtle);border:1px solid var(--brand-border);color:var(--brand);padding:4px 12px;border-radius:6px;font-size:11px;cursor:pointer;font-weight:600">↓ Download Full Chain (.pem)</button>`:''}</div>
+      ${chainHtml||'<div style="padding:14px;color:var(--text-muted)">No chain data</div>'}
+    </div>
+    <div class="card dns-card">
+      <div class="dns-card-head"><div class="dns-card-title">⚠ Vulnerabilities</div></div>
+      <div style="padding:14px">
+        ${vulnHtml||'<div style="color:var(--ok)">✓ No known vulnerabilities detected</div>'}
+      </div>
+    </div>
+  </div>
+  
+  <div class="card" style="padding:16px;margin-top:14px">
+    <div style="font-size:11px;font-weight:600;color:var(--text-faint);margin-bottom:12px;text-transform:uppercase;letter-spacing:.05em">Client Handshake Simulation</div>
+    <div style="max-height:300px;overflow-y:auto">
+      ${simHtml||'<div style="color:var(--text-muted)">No simulation data</div>'}
+    </div>
+  </div>
+  
+  ${recs.length?`<div class="card" style="padding:16px;margin-top:14px;border-color:rgba(245,158,11,.2);background:rgba(245,158,11,.04)">
+    <div style="font-size:13px;font-weight:600;color:var(--warn);margin-bottom:12px">💡 Recommendations</div>
+    ${recsHtml}
+  </div>`:''}`;
 }
 function irow(l,v,col){
   return `<div class="irow"><span class="ilabel">${esc(l)}</span><span class="ivalue" style="${col?'color:'+col:''}">${esc(v)}</span></div>`;
@@ -1177,8 +1374,9 @@ function renderPorts(data){
 // ── Stat helpers ───────────────────────────────────────────────
 function sslStat(d){
   if(d.error){ setStat('sSsl','Error','err'); return; }
-  const days=d.daysRemaining;
-  if(!d.valid||days<0) setStat('sSsl','Invalid','err');
+  const days=d.certificate?.daysRemaining;
+  const expired=d.certificate?.expired;
+  if(expired||days<0) setStat('sSsl','Invalid','err');
   else if(days<30) setStat('sSsl',days+'d left','err');
   else if(days<90) setStat('sSsl',days+'d left','warn');
   else setStat('sSsl','Valid ✓','ok');
@@ -1193,11 +1391,18 @@ function score(){
   let pts=0, tot=0;
   if(S.dns?.insights){
     const c=S.dns.insights.checks;
-    pts+=(c.spf?20:0)+(c.dmarc?20:0)+(c.caa?10:0)+(c.mx?10:0); tot+=60;
+    pts+=(c.spf?15:0)+(c.dmarc?15:0)+(c.caa?10:0)+(c.mx?10:0); tot+=50;
+  }
+  if(S.emailsec&&!S.emailsec.error){
+    const es=S.emailsec.overallScore||0;
+    pts+=Math.round(es*0.2); tot+=20;
+    setStat('sEmail',es+'%',es>=80?'ok':es>=50?'warn':'err');
+  } else if(S.dns?.insights){
+    const c=S.dns.insights.checks;
     const es=(c.spf?1:0)+(c.dmarc?1:0)+(c.mx?1:0);
     setStat('sEmail',es===3?'Strong':es>=2?'Fair':'Weak',es===3?'ok':es>=2?'warn':'err');
   }
-  if(S.ssl&&!S.ssl.error){ const d=S.ssl.daysRemaining; pts+=d>90?30:d>30?20:d>0?10:0; tot+=30; }
+  if(S.ssl&&!S.ssl.error){ const d=S.ssl.certificate?.daysRemaining; pts+=d>90?30:d>30?20:d>0?10:0; tot+=30; }
   if(S.bl?.results){ pts+=S.bl.results.some(r=>r.listed)?0:10; tot+=10; }
   if(!tot) return;
   const pct=Math.round(pts/tot*100);
@@ -1210,15 +1415,559 @@ function score(){
   $('gradeLetter').style.color=gc;
   $('gradeLetter').style.textShadow=`0 0 40px ${gc}77`;
   const chips=[];
-  if(S.ssl&&!S.ssl.error) chips.push(`<span class="pill accent">${esc(S.ssl.protocol||'TLS')}</span>`);
+  if(S.ssl&&!S.ssl.error) chips.push(`<span class="pill accent">${esc(S.ssl.grade?.letter||'TLS')}</span>`);
   if(S.dns?.results?.NS?.length) chips.push(`<span class="pill">${esc(S.dns.results.NS[0]?.value||'')}</span>`);
   if(S.geoip?.geo?.country_name) chips.push(`<span class="pill">${cFlag(S.geoip.geo.country_name)} ${esc(S.geoip.geo.country_name)}</span>`);
   if(S.geoip?.geo?.org) chips.push(`<span class="pill">${esc(S.geoip.geo.org)}</span>`);
   $('domainChips').innerHTML=chips.join('');
 }
 
+// ── Render: Security Headers ───────────────────────────────────
+function renderHeaders(data){
+  if(data.error){
+    $('headersContent').innerHTML=`<div class="card"><div class="err-box">${esc(data.error)}</div></div>`; return;
+  }
+  
+  const analysis=data.analysis||{};
+  const checks=analysis.checks||{};
+  const score=analysis.score||0;
+  const scoreColor=score>=80?'var(--ok)':score>=60?'#a3e635':score>=40?'var(--warn)':'var(--err)';
+  const ratingLabel=analysis.rating==='excellent'?'Excellent':analysis.rating==='good'?'Good':analysis.rating==='fair'?'Fair':'Poor';
+  
+  const checksHtml=Object.entries(checks).map(([name,c])=>{
+    const icon=c.passed?'✓':c.deprecated?'⚠':'✗';
+    const color=c.passed?'var(--ok)':c.deprecated?'var(--warn)':'var(--err)';
+    const badge=c.passed?'ok':c.deprecated?'warn':'err';
+    const badgeLabel=c.passed?'PASS':c.deprecated?'DEPRECATED':'MISSING';
+    const deprecatedNote=c.deprecated?'<div style="font-size:11px;color:var(--warn);margin-top:4px">Should be removed</div>':'';
+    const valueNote=c.detail&&c.detail!=='missing'&&c.detail!=='present'&&!c.passed?`<div style="font-size:11px;color:var(--text-muted);margin-top:4px">Current: ${esc(c.detail)}</div>`:'';
+    return `<div class="chk-row">
+      <span class="chk-icon" style="color:${color}">${icon}</span>
+      <div style="flex:1"><div class="chk-name">${esc(name)}</div><div class="chk-desc">${esc(c.detail)||'Header not present'}</div>${valueNote}${deprecatedNote}</div>
+      <span class="pill ${badge}">${badgeLabel}</span>
+    </div>`;
+  }).join('');
+  
+  const recs=analysis.recommendations&&analysis.recommendations.length>0?
+    `<div class="card" style="padding:20px;margin-top:14px;border-color:rgba(245,158,11,.2);background:rgba(245,158,11,.06)">
+      <div style="font-size:13px;font-weight:700;color:var(--warn);margin-bottom:12px">Recommendations</div>
+      ${analysis.recommendations.map(n=>`<div style="font-size:12px;color:var(--text-muted);padding:6px 10px;background:rgba(245,158,11,.05);border-radius:8px;border:1px solid rgba(245,158,11,.15);margin-bottom:6px">→ ${esc(n)}</div>`).join('')}
+    </div>`:'';
+  
+  const httpBadge=data.http2?'<span class="pill ok">HTTP/2 ✓</span>':'<span class="pill">HTTP/1.1</span>';
+  
+  $('headersContent').innerHTML=`<div class="sec-layout">
+    <div class="card" style="padding:28px;text-align:center">
+      <div class="sec-label" style="padding:0 0 12px">Header Score</div>
+      <div class="big-score" style="color:${scoreColor};text-shadow:0 0 40px ${scoreColor}66">${score}<span style="font-size:28px;color:var(--text-faint)">/100</span></div>
+      <div style="font-size:13px;color:var(--text-muted);margin-top:10px">${ratingLabel}</div>
+      <div style="margin-top:20px;height:6px;background:rgba(255,255,255,.05);border-radius:3px;overflow:hidden">
+        <div style="height:100%;width:${score}%;background:${scoreColor};border-radius:3px;transition:width 1.2s cubic-bezier(.4,0,.2,1);box-shadow:0 0 16px ${scoreColor}88"></div>
+      </div>
+      <div style="margin-top:20px">${httpBadge} <span class="pill">Status ${data.statusCode||'—'}</span></div>
+    </div>
+    <div class="card" style="overflow:hidden"><div class="sec-label">Security Headers</div>${checksHtml}</div>
+  </div>${recs}`;
+}
+
+// ── Render: DNSSEC ─────────────────────────────────────────────
+function renderDnssec(data){
+  if(data.error){
+    $('dnssecContent').innerHTML=`<div class="card"><div class="err-box">${esc(data.error)}</div></div>`; return;
+  }
+  
+  const rating=data.rating||'unknown';
+  const ratingColor=rating==='good'?'var(--ok)':rating==='incomplete'?'var(--warn)':'var(--text-muted)';
+  const ratingLabel=rating==='good'?'Configured':rating==='incomplete'?'Partial':'Not Configured';
+  
+  const dnskeyHtml=data.checks?.dnskey?.present?
+    data.checks.dnskey.records.map(r=>`<div style="padding:10px 14px;background:rgba(6,182,212,.05);border-radius:8px;margin-bottom:8px">
+      <span class="pill accent" style="margin-right:8px">${esc(r.keyType)}</span>
+      <span style="font-size:12px;color:var(--text-dim)">Algorithm ${esc(String(r.algorithm))} · KeyTag ${esc(String(r.keyTag))}</span>
+    </div>`).join(''):
+    '<div style="padding:14px;color:var(--text-muted)">No DNSKEY records found</div>';
+  
+  const dsHtml=data.checks?.ds?.present?
+    data.checks.ds.records.map(r=>`<div style="padding:10px 14px;background:rgba(16,185,129,.05);border-radius:8px;margin-bottom:8px">
+      <span style="font-size:12px;color:var(--text-dim)">KeyTag ${esc(String(r.keyTag))} · Algorithm ${esc(String(r.algorithm))} · Digest ${esc(String(r.digestType))}</span>
+    </div>`).join(''):
+    '<div style="padding:14px;color:var(--text-muted)">No DS records found at parent zone</div>';
+  
+  const issues=data.issues&&data.issues.length>0?
+    `<div class="card" style="padding:16px;margin-top:14px;border-color:rgba(239,68,68,.2);background:rgba(239,68,68,.05)">
+      <div style="font-size:13px;font-weight:700;color:var(--err);margin-bottom:10px">Issues</div>
+      ${data.issues.map(i=>`<div style="font-size:12px;color:var(--text-muted);padding:4px 0">• ${esc(i)}</div>`).join('')}
+    </div>`:'';
+  
+  const recs=data.recommendations&&data.recommendations.length>0?
+    `<div class="card" style="padding:16px;margin-top:14px;border-color:rgba(245,158,11,.2);background:rgba(245,158,11,.05)">
+      <div style="font-size:13px;font-weight:700;color:var(--warn);margin-bottom:10px">Recommendations</div>
+      ${data.recommendations.map(r=>`<div style="font-size:12px;color:var(--text-muted);padding:4px 0">→ ${esc(r)}</div>`).join('')}
+    </div>`:'';
+  
+  $('dnssecContent').innerHTML=`<div class="card" style="padding:24px;margin-bottom:14px">
+    <div style="display:flex;align-items:center;gap:16px">
+      <div style="font-size:48px">${rating==='good'?'🔐':'🔓'}</div>
+      <div>
+        <div style="font-size:18px;font-weight:700;color:${ratingColor}">${ratingLabel}</div>
+        <div style="font-size:12px;color:var(--text-muted);margin-top:4px">DNSSEC Status for ${esc(data.domain||'')}</div>
+      </div>
+    </div>
+  </div>
+  <div class="dns-grid">
+    <div class="card dns-card">
+      <div class="dns-card-head">
+        <div class="dns-card-title"><span class="rtype-badge" style="background:var(--accent-subtle);border:1px solid var(--accent-border);color:var(--accent)">DNSKEY</span> DNS Keys</div>
+      </div>
+      ${dnskeyHtml}
+    </div>
+    <div class="card dns-card">
+      <div class="dns-card-head">
+        <div class="dns-card-title"><span class="rtype-badge" style="background:var(--brand-subtle);border:1px solid var(--brand-border);color:var(--brand)">DS</span> Delegation Signer</div>
+      </div>
+      ${dsHtml}
+    </div>
+  </div>${issues}${recs}`;
+}
+
+// ── Render: OCSP ──────────────────────────────────────────────
+function renderOcsp(data){
+  if(data.error){
+    $('ocspContent').innerHTML=`<div class="card"><div class="err-box">${esc(data.error)}</div></div>`; return;
+  }
+  
+  const rating=data.rating||'unknown';
+  const ratingColor=rating==='good'?'var(--ok)':rating==='warning'?'var(--warn)':'var(--text-muted)';
+  const ratingLabel=rating==='good'?'Good':rating==='warning'?'Warning':rating==='fair'?'Fair':'Unknown';
+  
+  const issueItems=data.issues&&data.issues.length>0?
+    data.issues.map(i=>`<div style="font-size:12px;color:var(--text-muted);padding:4px 0">• ${esc(i)}</div>`).join(''):'';
+  
+  $('ocspContent').innerHTML=`<div class="card" style="padding:24px;margin-bottom:14px">
+    <div style="display:flex;align-items:center;gap:16px">
+      <div style="font-size:48px">${rating==='good'?'✓':'⚠'}</div>
+      <div>
+        <div style="font-size:18px;font-weight:700;color:${ratingColor}">${ratingLabel}</div>
+        <div style="font-size:12px;color:var(--text-muted);margin-top:4px">Certificate Revocation Status</div>
+      </div>
+    </div>
+  </div>
+  <div class="ssl-grid">
+    <div class="card" style="padding:24px">
+      <div style="font-size:13px;font-weight:600;margin-bottom:16px">Certificate</div>
+      ${irow('Serial',data.certificate?.serialNumber||'—')}
+      ${irow('Issuer',data.certificate?.issuer||'—')}
+      ${irow('Valid From',data.certificate?.validFrom||'—')}
+      ${irow('Valid To',data.certificate?.validTo||'—')}
+    </div>
+    <div class="card" style="padding:24px">
+      <div style="font-size:13px;font-weight:600;margin-bottom:16px">Revocation Checking</div>
+      ${irow('OCSP Supported',data.ocsp?.supported?'Yes ✓':'No','var(--ok)')}
+      ${data.ocsp?.responderURL?irow('OCSP Responder',esc(data.ocsp.responderURL)):''}
+      ${irow('CRL Supported',data.crl?.supported?'Yes ✓':'No','var(--ok)')}
+      ${data.crl?.distributionPoint?irow('CRL Distribution',esc(data.crl.distributionPoint)):''}
+      ${irow('Stapling Available',data.stapling?.supported?'Yes ✓':'No','var(--ok)')}
+    </div>
+  </div>
+  ${issueItems?`<div class="card" style="padding:16px;margin-top:14px;border-color:rgba(245,158,11,.2);background:rgba(245,158,11,.05)">
+    <div style="font-size:13px;font-weight:700;color:var(--warn);margin-bottom:10px">Issues</div>
+    ${issueItems}
+  </div>`:''}`;
+}
+
+// ── Render: MTA-STS ───────────────────────────────────────────
+function renderMtasts(data){
+  if(data.error){
+    $('mtastsContent').innerHTML=`<div class="card"><div class="err-box">${esc(data.error)}</div></div>`; return;
+  }
+  
+  const rating=data.rating||'not_configured';
+  const ratingColor=rating==='good'?'var(--ok)':rating==='partial'?'var(--warn)':'var(--text-muted)';
+  const ratingLabel=rating==='good'?'Protected':rating==='partial'?'Partial':'Not Protected';
+  
+  const mtaStsBadge=data.mtaSts?.present?
+    `<span class="pill ok">DNS Record ✓</span>`:
+    `<span class="pill err">DNS Missing ✗</span>`;
+  const mtaStsWellKnownBadge=data.mtaSts?.wellKnown?.present?
+    `<span class="pill ok">HTTPS Policy ✓</span>`:
+    `<span class="pill warn">HTTPS Policy ✗</span>`;
+  
+  const policyHtml=data.mtaSts?.policy?
+    `<div style="padding:14px;background:rgba(6,182,212,.05);border-radius:8px;margin-top:10px">
+      ${data.mtaSts.policy.version?`<div style="font-size:12px;margin-bottom:4px"><span style="color:var(--text-muted)">Version:</span> ${esc(data.mtaSts.policy.version)}</div>`:''}
+      ${data.mtaSts.policy.mode?`<div style="font-size:12px;margin-bottom:4px"><span style="color:var(--text-muted)">Mode:</span> <span style="font-weight:600;color:${data.mtaSts.policy.mode==='enforce'?'var(--ok)':data.mtaSts.policy.mode==='testing'?'var(--warn)':'var(--text-dim)'}">${esc(data.mtaSts.policy.mode)}</span></div>`:''}
+      ${data.mtaSts.policy.mx?`<div style="font-size:12px"><span style="color:var(--text-muted)">MX:</span> ${esc(data.mtaSts.policy.mx)}</div>`:''}
+    </div>`:'';
+  
+  const tlsaHtml=data.tlsa?.present&&data.tlsa.records?.length>0?
+    data.tlsa.records.map(r=>`<div style="padding:10px 14px;background:rgba(16,185,129,.05);border-radius:8px;margin-bottom:8px">
+      <span class="pill" style="background:var(--brand-subtle);border-color:var(--brand-border);color:var(--brand);margin-right:8px">${['CA','Service','Trust Anchor','Domain'][r.certificateUsage-1]||'Unknown'}</span>
+      <span style="font-size:11px;color:var(--text-muted)">Selector: ${r.selector} · Hash: ${r.matchingType} · ${esc(r.hash.substring(0,32))}...</span>
+    </div>`).join(''):
+    '<div style="padding:14px;color:var(--text-muted)">No TLSA records found</div>';
+  
+  const issues=data.issues&&data.issues.length>0?
+    `<div class="card" style="padding:16px;margin-top:14px;border-color:rgba(239,68,68,.2);background:rgba(239,68,68,.05)">
+      <div style="font-size:13px;font-weight:700;color:var(--err);margin-bottom:10px">Issues</div>
+      ${data.issues.map(i=>`<div style="font-size:12px;color:var(--text-muted);padding:4px 0">• ${esc(i)}</div>`).join('')}
+    </div>`:'';
+  
+  const recs=data.recommendations&&data.recommendations.length>0?
+    `<div class="card" style="padding:16px;margin-top:14px;border-color:rgba(245,158,11,.2);background:rgba(245,158,11,.05)">
+      <div style="font-size:13px;font-weight:700;color:var(--warn);margin-bottom:10px">Recommendations</div>
+      ${data.recommendations.map(r=>`<div style="font-size:12px;color:var(--text-muted);padding:4px 0">→ ${esc(r)}</div>`).join('')}
+    </div>`:'';
+  
+  $('mtastsContent').innerHTML=`<div class="card" style="padding:24px;margin-bottom:14px">
+    <div style="display:flex;align-items:center;gap:16px">
+      <div style="font-size:48px">${rating==='good'?'🔒':'🔓'}</div>
+      <div>
+        <div style="font-size:18px;font-weight:700;color:${ratingColor}">${ratingLabel}</div>
+        <div style="font-size:12px;color:var(--text-muted);margin-top:4px">SMTP Security for ${esc(data.domain||'')}</div>
+      </div>
+    </div>
+    <div style="margin-top:16px;display:flex;gap:8px;flex-wrap:wrap">
+      ${mtaStsBadge}${mtaStsWellKnownBadge}
+      ${data.tlsa?.present?'<span class="pill ok">DANE/TLSA ✓</span>':'<span class="pill warn">DANE/TLSA ✗</span>'}
+    </div>
+  </div>
+  <div class="dns-grid">
+    <div class="card dns-card">
+      <div class="dns-card-head">
+        <div class="dns-card-title"><span class="rtype-badge" style="background:var(--accent-subtle);border:1px solid var(--accent-border);color:var(--accent)">MTA-STS</span> Mail Transfer Agent Strict Transport Security</div>
+      </div>
+      <div style="padding:14px">
+        ${data.mtaSts?.present?'<span class="pill ok" style="margin-bottom:10px">Record Present</span>':'<span style="color:var(--err)">No MTA-STS DNS record</span>'}
+        ${policyHtml}
+      </div>
+    </div>
+    <div class="card dns-card">
+      <div class="dns-card-head">
+        <div class="dns-card-title"><span class="rtype-badge" style="background:var(--brand-subtle);border:1px solid var(--brand-border);color:var(--brand)">TLSA</span> DNS-Based Authentication of Named Entities</div>
+      </div>
+      <div style="padding:14px">${tlsaHtml}</div>
+    </div>
+  </div>${issues}${recs}`;
+}
+
+// ── Render: MX/SMTP ───────────────────────────────────────────
+function renderMx(data){
+  if(data.error){ $('mxContent').innerHTML=`<div class="card"><div class="err-box">${esc(data.error)}</div></div>`; return; }
+  const servers=data.mxServers||[];
+  if(!servers.length){
+    $('mxContent').innerHTML=`<div class="card" style="padding:24px;text-align:center">
+      <div style="font-size:48px;margin-bottom:16px">📧</div>
+      <div style="color:var(--text-muted)">No MX records found</div>
+    </div>`;
+    return;
+  }
+  const serversHtml=servers.map(s=>`<div class="card" style="padding:16px;margin-bottom:10px">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+      <span class="rtype-badge" style="background:rgba(167,139,250,.1);border:1px solid rgba(167,139,250,.32);color:var(--purple)">P${s.priority}</span>
+      <span style="font-weight:600;font-family:'JetBrains Mono',monospace;font-size:13px">${esc(s.host)}</span>
+      ${s.ipv4?`<span class="pill">${esc(s.ipv4)}</span>`:''}
+    </div>
+    <div style="display:flex;flex-wrap:wrap;gap:6px">
+      ${s.smtp.starttls?`<span class="pill ok">✓ STARTTLS</span>`:'<span class="pill warn">✗ STARTTLS</span>'}
+      ${s.smtp.banner?`<span class="pill" style="max-width:300px;overflow:hidden;text-overflow:ellipsis">${esc(s.smtp.banner.substring(0,80))}</span>`:''}
+    </div>
+  </div>`).join('');
+  $('mxContent').innerHTML=`${serversHtml}`;
+}
+
+// ── Render: Trace ───────────────────────────────────────────
+function renderTrace(data){
+  if(data.error){ $('traceContent').innerHTML=`<div class="card"><div class="err-box">${esc(data.error)}</div></div>`; return; }
+  const dualBadge=data.dualStack?'<span class="pill ok">Dual Stack ✓</span>':'<span class="pill warn">Single Stack</span>';
+  $('traceContent').innerHTML=`<div class="ssl-grid">
+    <div class="card" style="padding:20px">
+      <div style="font-size:13px;font-weight:600;margin-bottom:14px">IP Addresses</div>
+      ${data.hasIPv4?`<div style="padding:8px 0;border-bottom:1px solid rgba(255,255,255,.05)"><span class="pill accent">IPv4</span> ${esc(data.ipv4||'')}</div>`:''}
+      ${data.hasIPv6?`<div style="padding:8px 0"><span class="pill info">IPv6</span> ${esc(data.ipv6||'')}</div>`:''}
+    </div>
+    <div class="card" style="padding:20px;text-align:center">
+      <div style="font-size:40px;margin-bottom:10px">🌐</div>
+      <div style="font-size:14px;font-weight:600">${data.message||'Connectivity'}</div>
+      <div style="margin-top:10px">${dualBadge}</div>
+    </div>
+  </div>`;
+}
+
+// ── Render: Technology ──────────────────────────────────────
+function renderTech(data){
+  if(data.error){ $('techContent').innerHTML=`<div class="card"><div class="err-box">${esc(data.error)}</div></div>`; return; }
+  const d=data.detected||{};
+  const cats=[['CMS',d.cms],['Frameworks',d.frameworks],['JavaScript',d.javascript],['Hosting',d.hosting],['Analytics',d.analytics],['Security',d.security],['Servers',d.servers]];
+  const techHtml=cats.filter(([,v])=>v&&v.length).map(([label,items])=>`<div style="margin-bottom:12px">
+    <div style="font-size:11px;font-weight:600;color:var(--text-faint);margin-bottom:8px">${label}</div>
+    <div style="display:flex;flex-wrap:wrap;gap:6px">${items.map(t=>`<span class="pill">${esc(t)}</span>`).join('')}</div>
+  </div>`).join('');
+  $('techContent').innerHTML=`<div class="card" style="padding:20px">
+    <div style="font-size:14px;font-weight:600;margin-bottom:16px">🔍 Technology Detection</div>
+    ${techHtml||'<div style="color:var(--text-muted)">No technologies detected</div>'}
+  </div>`;
+}
+
+// ── Render: HTTP ─────────────────────────────────────────────
+function renderHttp(data){
+  if(data.error){ $('httpContent').innerHTML=`<div class="card"><div class="err-box">${esc(data.error)}</div></div>`; return; }
+  const score=data.score||0;
+  const scoreColor=score>=80?'var(--ok)':score>=60?'#a3e635':score>=40?'var(--warn)':'var(--err)';
+  $('httpContent').innerHTML=`<div class="ssl-grid">
+    <div class="card" style="padding:24px;text-align:center">
+      <div style="font-size:11px;font-weight:600;color:var(--text-faint);margin-bottom:12px">HTTP SCORE</div>
+      <div style="font-family:'Plus Jakarta Sans',sans-serif;font-size:56px;font-weight:900;color:${scoreColor}">${score}</div>
+      <div style="margin-top:16px;height:6px;background:rgba(255,255,255,.05);border-radius:3px;overflow:hidden">
+        <div style="height:100%;width:${score}%;background:${scoreColor};border-radius:3px"></div>
+      </div>
+    </div>
+    <div class="card" style="padding:20px">
+      <div style="font-size:13px;font-weight:600;margin-bottom:14px">Protocols</div>
+      <div style="display:flex;flex-wrap:wrap;gap:8px">
+        ${data.protocols?.http2?`<span class="pill ok">HTTP/2 ✓</span>`:'<span class="pill">HTTP/2 ✗</span>'}
+        ${data.compression?.gzip?`<span class="pill ok">Gzip</span>`:''}
+        ${data.compression?.brotli?`<span class="pill ok">Brotli</span>`:''}
+      </div>
+      ${data.recommendations?.length?`<div style="margin-top:16px">${data.recommendations.map(r=>`<div style="font-size:11px;color:var(--warn);padding:4px 0">→ ${esc(r)}</div>`).join('')}</div>`:''}
+    </div>
+  </div>`;
+}
+
+// ── Render: Redirect ─────────────────────────────────────────
+function renderRedirect(data){
+  if(data.error){ $('redirectContent').innerHTML=`<div class="card"><div class="err-box">${esc(data.error)}</div></div>`; return; }
+  const chain=data.chain||[];
+  const chainHtml=chain.map((h,i)=>`<div style="display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid rgba(255,255,255,.05)">
+    <span style="width:24px;height:24px;border-radius:50%;background:var(--accent-subtle);color:var(--accent);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;flex-shrink:0">${i+1}</span>
+    <div style="flex:1;min-width:0">
+      <div style="font-family:'JetBrains Mono',monospace;font-size:11px;word-break:break-all;color:var(--text-dim)">${esc(h.url)}</div>
+      ${h.redirectTo?`<div style="font-size:11px;color:var(--accent);margin-top:4px">→ ${esc(h.redirectTo)}</div>`:''}
+      ${h.statusCode?`<span class="pill" style="margin-top:4px">${h.statusCode}</span>`:''}
+    </div>
+    ${h.durationMs?`<span style="font-size:10px;color:var(--text-faint)">${h.durationMs}ms</span>`:''}
+  </div>`).join('');
+  $('redirectContent').innerHTML=`<div class="card" style="padding:20px;margin-bottom:14px">
+    <div style="font-size:14px;font-weight:600">🔀 ${data.message||'Redirect Chain'}</div>
+    <div style="font-size:12px;color:var(--text-muted);margin-top:4px">${chain.length} hops · ${data.totalTimeMs||0}ms</div>
+  </div>
+  <div class="card" style="padding:16px">${chainHtml||'<div style="color:var(--text-muted)">No redirects</div>'}</div>`;
+}
+
+// ── Render: CORS ──────────────────────────────────────────────
+function renderCors(data){
+  if(data.error){ $('corsContent').innerHTML=`<div class="card"><div class="err-box">${esc(data.error)}</div></div>`; return; }
+  const cors=data.cors||{};
+  $('corsContent').innerHTML=`<div class="ssl-grid">
+    <div class="card" style="padding:20px">
+      <div style="font-size:13px;font-weight:600;margin-bottom:14px">🔗 CORS Status</div>
+      <div style="font-size:14px;color:${cors.enabled?'var(--ok)':'var(--text-muted)'}">${cors.enabled?'Enabled':'Disabled'}</div>
+      ${cors.origin?`<div style="margin-top:10px;font-size:12px;color:var(--text-muted)">Origin: <span style="font-family:'JetBrains Mono',monospace">${esc(cors.origin)}</span></div>`:''}
+    </div>
+    <div class="card" style="padding:20px">
+      <div style="font-size:13px;font-weight:600;margin-bottom:14px">Configuration</div>
+      ${irow('Credentials',cors.credentials?'Yes':'No')}
+      ${cors.methods?.length?`<div style="margin-top:10px"><div style="font-size:11px;color:var(--text-muted)">Methods:</div><div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:4px">${cors.methods.map(m=>`<span class="pill">${esc(m)}</span>`).join('')}</div></div>`:''}
+    </div>
+  </div>
+  ${data.issues?.length?`<div class="card" style="padding:16px;margin-top:14px;border-color:rgba(245,158,11,.2);background:rgba(245,158,11,.05)">
+    ${data.issues.map(i=>`<div style="font-size:12px;color:var(--warn);padding:4px 0">• ${esc(i)}</div>`).join('')}
+  </div>`:''}`;
+}
+
+// ── Render: Robots ────────────────────────────────────────────
+function renderRobots(data){
+  if(data.error){ $('robotsContent').innerHTML=`<div class="card"><div class="err-box">${esc(data.error)}</div></div>`; return; }
+  const robots=data.robots||{};
+  const sitemap=data.sitemap||{};
+  $('robotsContent').innerHTML=`<div class="ssl-grid">
+    <div class="card" style="padding:20px">
+      <div style="font-size:14px;font-weight:600;margin-bottom:12px">🤖 robots.txt</div>
+      <span class="pill ${robots.present?'ok':'warn'}">${robots.present?'Present':'Missing'}</span>
+      ${robots.rules?.length?`<div style="margin-top:12px;font-size:11px;color:var(--text-muted)">${robots.rules.length} rule(s) defined</div>`:''}
+    </div>
+    <div class="card" style="padding:20px">
+      <div style="font-size:14px;font-weight:600;margin-bottom:12px">🗺️ sitemap.xml</div>
+      <span class="pill ${sitemap.present?'ok':'warn'}">${sitemap.present?'Present':'Missing'}</span>
+      ${sitemap.totalUrls?`<div style="margin-top:12px;font-size:11px;color:var(--text-muted)">${sitemap.totalUrls} URL(s) indexed</div>`:''}
+    </div>
+  </div>`;
+}
+
+// ── Render: CT Logs ────────────────────────────────────────────
+function renderCt(data){
+  if(data.error){ $('ctContent').innerHTML=`<div class="card"><div class="err-box">${esc(data.error)}</div></div>`; return; }
+  const subdomains=data.subdomains||[];
+  $('ctContent').innerHTML=`<div class="card" style="padding:20px;margin-bottom:14px">
+    <div style="font-size:14px;font-weight:600">📜 Certificate Transparency</div>
+    <div style="font-size:12px;color:var(--text-muted);margin-top:4px">${subdomains.length} subdomain(s) found</div>
+  </div>
+  ${subdomains.length?`<div class="card" style="padding:16px">
+    <div style="display:flex;flex-wrap:wrap;gap:8px">${subdomains.slice(0,30).map(s=>`<span class="pill">${esc(s)}</span>`).join('')}</div>
+    ${subdomains.length>30?`<div style="margin-top:10px;color:var(--text-muted)">+${subdomains.length-30} more</div>`:''}
+  </div>`:'<div class="card" style="padding:24px;text-align:center;color:var(--text-muted)">No subdomains found in CT logs</div>'}`;
+}
+
+// ── Render: Email Security ─────────────────────────────────────
+function renderEmailSec(data){
+  if(data.error){ $('emailsecContent').innerHTML=`<div class="card"><div class="err-box">${esc(data.error)}</div></div>`; return; }
+  const ratingColor=data.rating==='strong'?'var(--ok)':data.rating==='good'?'#a3e635':data.rating==='fair'?'var(--warn)':'var(--err)';
+  const ratingLabel=data.rating==='strong'?'Strong':data.rating==='good'?'Good':data.rating==='fair'?'Fair':'Weak';
+
+  function scoreBar(score,color){ return `<div style="margin-top:6px;height:4px;background:rgba(255,255,255,.05);border-radius:2px;overflow:hidden"><div style="height:100%;width:${score}%;background:${color};border-radius:2px"></div></div>`; }
+  function issueList(arr){ return arr.length?arr.map(i=>`<div style="font-size:11px;color:var(--warn);padding:3px 0">⚠ ${esc(i)}</div>`).join(''):'<div style="font-size:11px;color:var(--ok)">✓ No issues found</div>'; }
+
+  const spf=data.spf||{}; const dmarc=data.dmarc||{}; const dkim=data.dkim||{}; const bimi=data.bimi||{};
+  const spfColor=spf.score>=85?'var(--ok)':spf.score>=60?'var(--warn)':'var(--err)';
+  const dmarcColor=dmarc.score>=85?'var(--ok)':dmarc.score>=60?'var(--warn)':'var(--err)';
+
+  const dmarcPolicyBadge=dmarc.policy?
+    `<span class="pill ${dmarc.policy==='reject'?'ok':dmarc.policy==='quarantine'?'warn':'err'}">${esc(dmarc.policy)}</span>`:'';
+  const pctBadge=dmarc.pct!=null&&dmarc.pct<100?`<span class="pill warn">pct=${dmarc.pct}%</span>`:'';
+
+  const recsHtml=data.recommendations&&data.recommendations.length>0?
+    `<div class="card" style="padding:16px;margin-top:14px;border-color:rgba(245,158,11,.2);background:rgba(245,158,11,.05)">
+      <div style="font-size:13px;font-weight:700;color:var(--warn);margin-bottom:10px">Recommendations</div>
+      ${data.recommendations.map(r=>`<div style="font-size:12px;color:var(--text-muted);padding:5px 10px;background:rgba(245,158,11,.05);border-radius:6px;border:1px solid rgba(245,158,11,.1);margin-bottom:4px">→ ${esc(r)}</div>`).join('')}
+    </div>`:'';
+
+  $('emailsecContent').innerHTML=`
+  <div class="card" style="padding:24px;margin-bottom:14px">
+    <div style="display:flex;align-items:center;gap:16px">
+      <div style="font-size:44px">📧</div>
+      <div style="flex:1">
+        <div style="font-size:18px;font-weight:700;color:${ratingColor}">${ratingLabel} Email Authentication</div>
+        <div style="font-size:12px;color:var(--text-muted);margin-top:4px">Score: ${data.overallScore}/100 for ${esc(data.domain||'')}</div>
+        <div style="margin-top:10px;height:6px;background:rgba(255,255,255,.05);border-radius:3px;overflow:hidden"><div style="height:100%;width:${data.overallScore}%;background:${ratingColor};border-radius:3px;transition:width 1.2s"></div></div>
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;flex-shrink:0">
+        <span class="pill ${spf.present?'ok':'err'}">SPF ${spf.present?'✓':'✗'}</span>
+        <span class="pill ${dmarc.present?'ok':'err'}">DMARC ${dmarc.present?'✓':'✗'}</span>
+        <span class="pill ${dkim.present?'ok':'err'}">DKIM ${dkim.present?'✓':'✗'}</span>
+        <span class="pill ${bimi.present?'ok':''}">${bimi.present?'BIMI ✓':'BIMI ✗'}</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="dns-grid">
+    <div class="card dns-card">
+      <div class="dns-card-head">
+        <div class="dns-card-title"><span class="rtype-badge" style="background:rgba(245,158,11,.1);border:1px solid rgba(245,158,11,.32);color:#f59e0b">SPF</span> Sender Policy Framework</div>
+        <span style="font-size:11px;font-weight:700;color:${spfColor}">${spf.score||0}/100</span>
+      </div>
+      <div style="padding:14px">
+        ${spf.present?`
+          <div style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--accent);word-break:break-all;padding:8px;background:rgba(6,182,212,.05);border-radius:6px;margin-bottom:10px">${esc(spf.record||'')}</div>
+          ${spf.policy?`<span class="pill ${spf.policy==='-all'?'ok':spf.policy==='+all'?'err':'warn'}">${esc(spf.policy)}</span> `:''}
+          ${scoreBar(spf.score||0,spfColor)}
+          <div style="margin-top:10px">${issueList(spf.issues||[])}</div>
+        `:`<div style="color:var(--err);font-size:13px">✗ No SPF record found</div><div style="font-size:11px;color:var(--text-muted);margin-top:6px">Publish a TXT record at ${esc(data.domain||'')} starting with v=spf1</div>`}
+      </div>
+    </div>
+
+    <div class="card dns-card">
+      <div class="dns-card-head">
+        <div class="dns-card-title"><span class="rtype-badge" style="background:rgba(96,165,250,.1);border:1px solid rgba(96,165,250,.32);color:#60a5fa">DMARC</span> Domain-based Message Authentication</div>
+        <span style="font-size:11px;font-weight:700;color:${dmarcColor}">${dmarc.score||0}/100</span>
+      </div>
+      <div style="padding:14px">
+        ${dmarc.present?`
+          <div style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--accent);word-break:break-all;padding:8px;background:rgba(6,182,212,.05);border-radius:6px;margin-bottom:10px">${esc(dmarc.record||'')}</div>
+          <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px">${dmarcPolicyBadge}${pctBadge}${dmarc.rua?'<span class="pill ok">Reports ✓</span>':'<span class="pill warn">No Reports</span>'}</div>
+          ${dmarc.adkim?`<div style="font-size:11px;color:var(--text-muted)">DKIM alignment: ${dmarc.adkim==='s'?'strict':'relaxed'} · SPF alignment: ${dmarc.aspf==='s'?'strict':'relaxed'}</div>`:''}
+          ${scoreBar(dmarc.score||0,dmarcColor)}
+          <div style="margin-top:10px">${issueList(dmarc.issues||[])}</div>
+        `:`<div style="color:var(--err);font-size:13px">✗ No DMARC record found</div><div style="font-size:11px;color:var(--text-muted);margin-top:6px">Publish a TXT record at _dmarc.${esc(data.domain||'')}</div>`}
+      </div>
+    </div>
+
+    <div class="card dns-card">
+      <div class="dns-card-head">
+        <div class="dns-card-title"><span class="rtype-badge" style="background:rgba(16,185,129,.1);border:1px solid rgba(16,185,129,.32);color:var(--brand)">DKIM</span> DomainKeys Identified Mail</div>
+      </div>
+      <div style="padding:14px">
+        ${dkim.present?`
+          <span class="pill ok" style="margin-bottom:10px">✓ DKIM configured</span>
+          <div style="margin-top:10px"><div style="font-size:11px;color:var(--text-muted);margin-bottom:6px">Found selectors:</div>
+          <div style="display:flex;flex-wrap:wrap;gap:6px">${(dkim.selectors||[]).map(s=>`<span class="pill">${esc(s)}</span>`).join('')}</div></div>
+        `:`<div style="color:var(--err);font-size:13px">✗ No DKIM public keys found</div><div style="font-size:11px;color:var(--text-muted);margin-top:6px">Checked ${16} common selectors — configure DKIM signing with your mail provider</div>`}
+      </div>
+    </div>
+
+    <div class="card dns-card">
+      <div class="dns-card-head">
+        <div class="dns-card-title"><span class="rtype-badge" style="background:rgba(167,139,250,.1);border:1px solid rgba(167,139,250,.32);color:var(--purple)">BIMI</span> Brand Indicators for Message Identification</div>
+      </div>
+      <div style="padding:14px">
+        ${bimi.present?`
+          <span class="pill ok" style="margin-bottom:10px">✓ BIMI record present</span>
+          ${bimi.logoUrl?`<div style="margin-top:10px;font-size:11px;color:var(--text-muted)">Logo: <span style="font-family:'JetBrains Mono',monospace;color:var(--accent)">${esc(bimi.logoUrl)}</span></div>`:''}
+        `:`<div style="color:var(--text-muted);font-size:13px">No BIMI record</div><div style="font-size:11px;color:var(--text-faint);margin-top:6px">BIMI displays your brand logo in supporting email clients. Requires DMARC enforcement (p=quarantine/reject).</div>`}
+      </div>
+    </div>
+  </div>
+  ${recsHtml}`;
+}
+
+// ── Email Sec Stat ─────────────────────────────────────────────
+function emailSecStat(d){
+  if(!d||d.error){ setStat('sEmail','—',''); return; }
+  const s=d.overallScore||0;
+  setStat('sEmail',s+'%',s>=80?'ok':s>=50?'warn':'err');
+}
+
+// ── Export Results ─────────────────────────────────────────────
+function exportResults(){
+  const domain=$('currentDomain').textContent||'unknown';
+  const payload={
+    domain,
+    exportedAt:new Date().toISOString(),
+    dns:S.dns, whois:S.whois, ssl:S.ssl, geoip:S.geoip,
+    ports:S.ports, blacklist:S.bl, propagation:S.prop,
+    securityHeaders:S.headers, dnssec:S.dnssec, ocsp:S.ocsp,
+    mtaSts:S.mtasts, emailSecurity:S.emailsec, redirectChain:S.redirect,
+    technologies:S.tech, http:S.http, mxSmtp:S.mx, trace:S.trace,
+    cors:S.cors, robots:S.robots, certTransparency:S.ct
+  };
+  const json=JSON.stringify(payload, null, 2);
+  const blob=new Blob([json],{type:'application/json'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  a.href=url; a.download=`hetops-dns-${domain}-${Date.now()}.json`; a.click();
+  URL.revokeObjectURL(url);
+}
+
 // ── Keyboard ───────────────────────────────────────────────────
 $('searchInput').addEventListener('keydown', e=>{ if(e.key==='Enter') runLookup(); });
+
+// ── Certificate Download ───────────────────────────────────────
+function downloadCert(index){
+  const chain=S.ssl?.certificate?.chain||[];
+  const cert=chain[index];
+  if(!cert?.pem){ alert('Certificate PEM data not available'); return; }
+  const filename=`${cert.subject?.CN||'certificate'}_${index}.pem`.replace(/[^a-z0-9._-]/gi,'_');
+  downloadFile(cert.pem,filename,'application/x-pem-file');
+}
+
+function downloadFullChain(){
+  const chain=S.ssl?.certificate?.chain||[];
+  const pemData=chain.map(c=>c.pem).filter(Boolean).join('\n');
+  if(!pemData){ alert('Certificate chain PEM data not available'); return; }
+  const domain=S.ssl?.host||'certificates';
+  const filename=`${domain}_chain.pem`.replace(/[^a-z0-9._-]/gi,'_');
+  downloadFile(pemData,filename,'application/x-pem-file');
+}
+
+function downloadFile(content,filename,mimeType){
+  const blob=new Blob([content],{type:mimeType});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  a.href=url;
+  a.download=filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
 </script>
 </body>
 </html>
