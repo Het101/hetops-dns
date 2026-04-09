@@ -35,9 +35,20 @@ function fetchIntermediateCerts(leafCert, timeout = 5000) {
         infoAccess: cert.infoAccess,         // needed so getAIAUrl works on recursive calls
         keyAlgorithm: cert.keyAlgorithm,
         bits: cert.bits,
-        ocspURI: cert.infoAccess
-          ? (cert.infoAccess.match(/OCSP[^:]*:\s*(https?:\/\/[^\n]+)/i)?.[1]?.trim() ?? null)
-          : null,
+        ocspURI: (() => {
+          const ia = cert.infoAccess;
+          if (!ia) return null;
+          if (typeof ia === 'string') return ia.match(/OCSP[^:]*:\s*(https?:\/\/[^\n]+)/i)?.[1]?.trim() ?? null;
+          if (typeof ia === 'object') {
+            for (const key of Object.keys(ia)) {
+              if (/OCSP/i.test(key)) {
+                const v = Array.isArray(ia[key]) ? ia[key][0] : ia[key];
+                if (typeof v === 'string' && v.startsWith('http')) return v.trim();
+              }
+            }
+          }
+          return null;
+        })(),
         PEM: cert.PEM,
         raw: cert.raw,
       };
@@ -48,8 +59,22 @@ function fetchIntermediateCerts(leafCert, timeout = 5000) {
       try {
         const infoAccess = certificate.infoAccess;
         if (infoAccess) {
-          const match = infoAccess.match(/CA Issuers[^:]*:\s*([^\n]+)/i);
-          if (match) return match[1].trim();
+          if (typeof infoAccess === 'string') {
+            // Human-readable (getPeerCertificate): "CA Issuers - URI:http://..."
+            let match = infoAccess.match(/CA Issuers[^:]*:\s*(?:URI:)?(https?:\/\/[^\n\s]+)/i);
+            if (match) return match[1].trim();
+            // OID format (X509Certificate.infoAccess): "1.3.6.1.5.5.7.48.2:\n  URI:http://..."
+            match = infoAccess.match(/1\.3\.6\.1\.5\.5\.7\.48\.2[^\n]*\n\s*(?:URI:)?(https?:\/\/[^\n\s]+)/i);
+            if (match) return match[1].trim();
+          } else if (typeof infoAccess === 'object') {
+            // Older Node.js object format: { 'CA Issuers - URI': 'http://...' }
+            for (const key of Object.keys(infoAccess)) {
+              if (/CA Issuers/i.test(key)) {
+                const val = Array.isArray(infoAccess[key]) ? infoAccess[key][0] : infoAccess[key];
+                if (typeof val === 'string' && val.startsWith('http')) return val.trim();
+              }
+            }
+          }
         }
       } catch (e) {}
       return null;
@@ -175,7 +200,26 @@ function fetchIntermediateCerts(leafCert, timeout = 5000) {
     
     (async () => {
       if (leafCert) {
-        await buildChain(leafCert);
+        // Step 1: Walk the chain already provided by the TLS handshake.
+        // getPeerCertificate(true) links certs via .issuerCertificate with
+        // a self-reference at the root — detect cycles by fingerprint.
+        let lastTlsCert = leafCert;
+        const seenFP = new Set([leafCert.fingerprint256].filter(Boolean));
+        let current = leafCert.issuerCertificate;
+        while (current) {
+          const fp = current.fingerprint256 || current.fingerprint;
+          if (!fp || seenFP.has(fp)) break; // circular ref = root pointing to itself
+          seenFP.add(fp);
+          intermediates.push(certToObject(current));
+          lastTlsCert = current;
+          current = current.issuerCertificate;
+        }
+
+        // Step 2: AIA-chase from the last TLS cert to pick up any remaining
+        // intermediates the server didn't send (e.g. cross-signed root).
+        if (!isCertSelfSigned(lastTlsCert)) {
+          await buildChain(lastTlsCert, Math.max(1, intermediates.length));
+        }
       }
       resolve(intermediates);
     })();

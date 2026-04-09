@@ -298,6 +298,11 @@
       box-shadow: 0 8px 40px rgba(16,185,129,0.5), inset 0 1px 0 rgba(255,255,255,0.2);
     }
     .btn-analyze:active { transform: scale(0.97); }
+    .btn-analyze:disabled {
+      background: linear-gradient(135deg, rgba(16,185,129,0.35), rgba(5,150,105,0.35));
+      cursor: not-allowed; transform: none;
+      box-shadow: none; opacity: 0.7;
+    }
 
     .examples {
       display: flex; align-items: center; gap: 8px;
@@ -387,40 +392,60 @@
       border-radius: 16px;
       overflow: hidden;
     }
-    .tab-groups {
-      display: flex; gap: 0; overflow-x: auto; align-items: stretch;
-      scrollbar-width: thin; scrollbar-color: rgba(255,255,255,.1) transparent;
+    /* Category tabs (top row) */
+    .cat-tabs {
+      display: flex; overflow-x: auto; border-bottom: 1px solid var(--border);
+      scrollbar-width: none; background: rgba(0,0,0,.12);
     }
-    .tab-groups::-webkit-scrollbar { height: 3px; }
-    .tab-groups::-webkit-scrollbar-thumb { background: rgba(255,255,255,.1); border-radius: 2px; }
-    .tab-group {
-      display: flex; align-items: stretch; position: relative;
+    .cat-tabs::-webkit-scrollbar { display: none; }
+    .cat-tab {
+      display: flex; align-items: center; gap: 8px;
+      padding: 14px 20px; background: none; border: none;
+      border-bottom: 3px solid transparent; margin-bottom: -1px;
+      cursor: pointer; font-family: 'Space Grotesk', sans-serif;
+      font-size: 13px; font-weight: 600; color: var(--text-muted);
+      transition: all 0.2s; white-space: nowrap; flex-shrink: 0;
     }
-    .tab-group + .tab-group::before {
-      content: ''; display: block; width: 1px;
-      background: var(--border); margin: 10px 0; flex-shrink: 0;
+    .cat-tab:hover { color: var(--text); background: rgba(255,255,255,.04); }
+    .cat-tab[data-cat="core"].active    { color: var(--brand);  border-bottom-color: var(--brand);  background: var(--brand-subtle); }
+    .cat-tab[data-cat="security"].active { color: var(--purple); border-bottom-color: var(--purple); background: rgba(167,139,250,.08); }
+    .cat-tab[data-cat="email"].active   { color: var(--warn);   border-bottom-color: var(--warn);   background: rgba(245,158,11,.08); }
+    .cat-tab[data-cat="network"].active { color: var(--info);   border-bottom-color: var(--info);   background: rgba(96,165,250,.08); }
+    .cat-tab[data-cat="web"].active     { color: var(--accent); border-bottom-color: var(--accent); background: var(--accent-subtle); }
+    .cat-tab[data-cat="intelligence"].active { color: #f97316; border-bottom-color: #f97316; background: rgba(249,115,22,.08); }
+    .cat-icon { font-size: 16px; line-height: 1; }
+    .cat-label { font-size: 13px; }
+    .cat-count {
+      font-size: 10px; font-weight: 700; padding: 2px 7px;
+      border-radius: 999px; background: rgba(255,255,255,.07);
+      color: var(--text-faint); line-height: 1.4;
     }
-    .tab-group-label {
-      font-size: 9px; font-weight: 700; letter-spacing: 0.16em;
-      text-transform: uppercase; color: var(--text-faint);
-      padding: 8px 14px 0; white-space: nowrap; flex-shrink: 0; align-self: flex-start;
+    /* Sub-tabs (second row) */
+    .sub-tabs-wrap {
+      display: flex; overflow-x: auto; gap: 4px; align-items: center;
+      padding: 8px 12px; min-height: 52px;
+      background: rgba(0,0,0,.18);
+      scrollbar-width: thin; scrollbar-color: rgba(255,255,255,.08) transparent;
     }
-    .tab-group-inner { display: flex; align-items: stretch; }
+    .sub-tabs-wrap::-webkit-scrollbar { height: 2px; }
+    .sub-tabs-wrap::-webkit-scrollbar-thumb { background: rgba(255,255,255,.1); border-radius: 1px; }
+    .sub-tabs-group { display: flex; gap: 4px; }
     .tab-btn {
-      background: none; border: none; border-bottom: 2px solid transparent;
-      color: var(--text-muted); cursor: pointer;
+      background: rgba(255,255,255,.03); border: 1px solid rgba(255,255,255,.07);
+      border-radius: 8px; color: var(--text-muted); cursor: pointer;
       font-family: 'Space Grotesk', sans-serif;
       font-size: 12px; font-weight: 500;
-      padding: 12px 14px 10px; transition: color 0.2s, background 0.2s, border-color 0.2s;
+      padding: 6px 13px; transition: all 0.18s;
       white-space: nowrap; display: flex; align-items: center; gap: 5px;
     }
-    .tab-btn:hover { color: var(--text); background: rgba(255,255,255,.03); }
+    .tab-btn:hover { color: var(--text); background: rgba(255,255,255,.07); border-color: rgba(255,255,255,.14); }
     .tab-btn.active {
-      color: var(--accent); border-bottom-color: var(--accent);
-      background: rgba(6,182,212,.05);
+      color: var(--accent); border-color: var(--accent-border);
+      background: var(--accent-subtle);
+      box-shadow: 0 0 0 1px rgba(6,182,212,.1), 0 2px 8px rgba(6,182,212,.08);
       text-shadow: 0 0 12px rgba(6,182,212,0.3);
     }
-    .tab-icon { font-size: 13px; }
+    .tab-icon { font-size: 12px; }
 
     /* Pane animation */
     [id^="pane-"] { animation: paneReveal 0.28s ease; }
@@ -749,62 +774,66 @@
 
     <!-- Tabs -->
     <div class="tabs-wrap">
-      <div class="tab-groups">
-        <!-- Core -->
-        <div class="tab-group">
-          <div class="tab-group-inner">
-            <button class="tab-btn active" id="tab-dns"         onclick="tab('dns')"><span class="tab-icon">🔍</span>DNS</button>
-            <button class="tab-btn"        id="tab-whois"       onclick="tab('whois')"><span class="tab-icon">📋</span>WHOIS</button>
-            <button class="tab-btn"        id="tab-geoip"       onclick="tab('geoip')"><span class="tab-icon">🌍</span>GeoIP</button>
-            <button class="tab-btn"        id="tab-propagation" onclick="tab('propagation')"><span class="tab-icon">📡</span>Propagation</button>
-          </div>
+      <!-- Category row -->
+      <div class="cat-tabs">
+        <button class="cat-tab active" id="cat-core"          data-cat="core"          onclick="selectCat('core')">
+          <span class="cat-icon">🔍</span><span class="cat-label">Core</span><span class="cat-count">4</span>
+        </button>
+        <button class="cat-tab"        id="cat-security"      data-cat="security"      onclick="selectCat('security')">
+          <span class="cat-icon">🛡</span><span class="cat-label">Security</span><span class="cat-count">9</span>
+        </button>
+        <button class="cat-tab"        id="cat-email"         data-cat="email"         onclick="selectCat('email')">
+          <span class="cat-icon">📧</span><span class="cat-label">Email</span><span class="cat-count">3</span>
+        </button>
+        <button class="cat-tab"        id="cat-network"       data-cat="network"       onclick="selectCat('network')">
+          <span class="cat-icon">🌐</span><span class="cat-label">Network</span><span class="cat-count">3</span>
+        </button>
+        <button class="cat-tab"        id="cat-web"           data-cat="web"           onclick="selectCat('web')">
+          <span class="cat-icon">🌩</span><span class="cat-label">Web</span><span class="cat-count">5</span>
+        </button>
+        <button class="cat-tab"        id="cat-intelligence"  data-cat="intelligence"  onclick="selectCat('intelligence')">
+          <span class="cat-icon">📜</span><span class="cat-label">Intelligence</span><span class="cat-count">2</span>
+        </button>
+      </div>
+      <!-- Sub-tabs row -->
+      <div class="sub-tabs-wrap">
+        <div class="sub-tabs-group" id="cat-core-tabs">
+          <button class="tab-btn active" id="tab-dns"          onclick="tab('dns')"><span class="tab-icon">🔍</span>DNS</button>
+          <button class="tab-btn"        id="tab-whois"        onclick="tab('whois')"><span class="tab-icon">📋</span>WHOIS</button>
+          <button class="tab-btn"        id="tab-geoip"        onclick="tab('geoip')"><span class="tab-icon">🌍</span>GeoIP</button>
+          <button class="tab-btn"        id="tab-propagation"  onclick="tab('propagation')"><span class="tab-icon">📡</span>Propagation</button>
         </div>
-        <!-- SSL / Security -->
-        <div class="tab-group">
-          <div class="tab-group-inner">
-            <button class="tab-btn"        id="tab-ssl"         onclick="tab('ssl')"><span class="tab-icon">🔒</span>SSL</button>
-            <button class="tab-btn"        id="tab-security"    onclick="tab('security')"><span class="tab-icon">🛡</span>Security</button>
-            <button class="tab-btn"        id="tab-headers"     onclick="tab('headers')"><span class="tab-icon">🔧</span>Headers</button>
-            <button class="tab-btn"        id="tab-csp"         onclick="tab('csp')"><span class="tab-icon">🧱</span>CSP</button>
-            <button class="tab-btn"        id="tab-dnssec"      onclick="tab('dnssec')"><span class="tab-icon">🔐</span>DNSSEC</button>
-            <button class="tab-btn"        id="tab-dnssec-chain" onclick="tab('dnssec-chain')"><span class="tab-icon">⛓</span>DNSSEC Chain</button>
-            <button class="tab-btn"        id="tab-ocsp"        onclick="tab('ocsp')"><span class="tab-icon">✅</span>OCSP</button>
-            <button class="tab-btn"        id="tab-hsts"        onclick="tab('hsts')"><span class="tab-icon">🚀</span>HSTS</button>
-            <button class="tab-btn"        id="tab-takeover"    onclick="tab('takeover')"><span class="tab-icon">⚠️</span>Takeover</button>
-          </div>
+        <div class="sub-tabs-group" id="cat-security-tabs" style="display:none">
+          <button class="tab-btn"        id="tab-ssl"          onclick="tab('ssl')"><span class="tab-icon">🔒</span>SSL</button>
+          <button class="tab-btn"        id="tab-security"     onclick="tab('security')"><span class="tab-icon">🛡</span>Security</button>
+          <button class="tab-btn"        id="tab-headers"      onclick="tab('headers')"><span class="tab-icon">🔧</span>Headers</button>
+          <button class="tab-btn"        id="tab-csp"          onclick="tab('csp')"><span class="tab-icon">🧱</span>CSP</button>
+          <button class="tab-btn"        id="tab-dnssec"       onclick="tab('dnssec')"><span class="tab-icon">🔐</span>DNSSEC</button>
+          <button class="tab-btn"        id="tab-dnssec-chain" onclick="tab('dnssec-chain')"><span class="tab-icon">⛓</span>DNSSEC Chain</button>
+          <button class="tab-btn"        id="tab-ocsp"         onclick="tab('ocsp')"><span class="tab-icon">✅</span>OCSP</button>
+          <button class="tab-btn"        id="tab-hsts"         onclick="tab('hsts')"><span class="tab-icon">🚀</span>HSTS</button>
+          <button class="tab-btn"        id="tab-takeover"     onclick="tab('takeover')"><span class="tab-icon">⚠️</span>Takeover</button>
         </div>
-        <!-- Email -->
-        <div class="tab-group">
-          <div class="tab-group-inner">
-            <button class="tab-btn"        id="tab-emailsec"    onclick="tab('emailsec')"><span class="tab-icon">📧</span>Email Auth</button>
-            <button class="tab-btn"        id="tab-mx"          onclick="tab('mx')"><span class="tab-icon">📨</span>MX</button>
-            <button class="tab-btn"        id="tab-mtasts"      onclick="tab('mtasts')"><span class="tab-icon">🔏</span>MTA-STS</button>
-          </div>
+        <div class="sub-tabs-group" id="cat-email-tabs" style="display:none">
+          <button class="tab-btn"        id="tab-emailsec"     onclick="tab('emailsec')"><span class="tab-icon">📧</span>Email Auth</button>
+          <button class="tab-btn"        id="tab-mx"           onclick="tab('mx')"><span class="tab-icon">📨</span>MX</button>
+          <button class="tab-btn"        id="tab-mtasts"       onclick="tab('mtasts')"><span class="tab-icon">🔏</span>MTA-STS</button>
         </div>
-        <!-- Network -->
-        <div class="tab-group">
-          <div class="tab-group-inner">
-            <button class="tab-btn"        id="tab-ipv6"        onclick="tab('ipv6')"><span class="tab-icon">🌐</span>IPv6</button>
-            <button class="tab-btn"        id="tab-trace"       onclick="tab('trace')"><span class="tab-icon">📶</span>Trace</button>
-            <button class="tab-btn"        id="tab-ports"       onclick="tab('ports')"><span class="tab-icon">🔌</span>Ports</button>
-          </div>
+        <div class="sub-tabs-group" id="cat-network-tabs" style="display:none">
+          <button class="tab-btn"        id="tab-ipv6"         onclick="tab('ipv6')"><span class="tab-icon">🌐</span>IPv6</button>
+          <button class="tab-btn"        id="tab-trace"        onclick="tab('trace')"><span class="tab-icon">📶</span>Trace</button>
+          <button class="tab-btn"        id="tab-ports"        onclick="tab('ports')"><span class="tab-icon">🔌</span>Ports</button>
         </div>
-        <!-- Web -->
-        <div class="tab-group">
-          <div class="tab-group-inner">
-            <button class="tab-btn"        id="tab-http"        onclick="tab('http')"><span class="tab-icon">🌩</span>HTTP</button>
-            <button class="tab-btn"        id="tab-redirect"    onclick="tab('redirect')"><span class="tab-icon">↪</span>Redirect</button>
-            <button class="tab-btn"        id="tab-tech"        onclick="tab('tech')"><span class="tab-icon">⚙️</span>Tech</button>
-            <button class="tab-btn"        id="tab-cors"        onclick="tab('cors')"><span class="tab-icon">🔗</span>CORS</button>
-            <button class="tab-btn"        id="tab-robots"      onclick="tab('robots')"><span class="tab-icon">🤖</span>Robots</button>
-          </div>
+        <div class="sub-tabs-group" id="cat-web-tabs" style="display:none">
+          <button class="tab-btn"        id="tab-http"         onclick="tab('http')"><span class="tab-icon">🌩</span>HTTP</button>
+          <button class="tab-btn"        id="tab-redirect"     onclick="tab('redirect')"><span class="tab-icon">↪</span>Redirect</button>
+          <button class="tab-btn"        id="tab-tech"         onclick="tab('tech')"><span class="tab-icon">⚙️</span>Tech</button>
+          <button class="tab-btn"        id="tab-cors"         onclick="tab('cors')"><span class="tab-icon">🔗</span>CORS</button>
+          <button class="tab-btn"        id="tab-robots"       onclick="tab('robots')"><span class="tab-icon">🤖</span>Robots</button>
         </div>
-        <!-- Discovery -->
-        <div class="tab-group">
-          <div class="tab-group-inner">
-            <button class="tab-btn"        id="tab-ct"          onclick="tab('ct')"><span class="tab-icon">📜</span>CT Logs</button>
-            <button class="tab-btn"        id="tab-typosquat"   onclick="tab('typosquat')"><span class="tab-icon">🎭</span>Typosquat</button>
-          </div>
+        <div class="sub-tabs-group" id="cat-intelligence-tabs" style="display:none">
+          <button class="tab-btn"        id="tab-ct"           onclick="tab('ct')"><span class="tab-icon">📜</span>CT Logs</button>
+          <button class="tab-btn"        id="tab-typosquat"    onclick="tab('typosquat')"><span class="tab-icon">🎭</span>Typosquat</button>
         </div>
       </div>
     </div>
@@ -1008,13 +1037,29 @@ function tab(name){
   pane.style.animation='';
 }
 
+// ── Category selection ─────────────────────────────────────────
+const CAT_FIRST = { core:'dns', security:'ssl', email:'emailsec', network:'ipv6', web:'http', intelligence:'ct' };
+function selectCat(name){
+  document.querySelectorAll('.cat-tab').forEach(b=>b.classList.remove('active'));
+  document.querySelectorAll('.sub-tabs-group').forEach(g=>g.style.display='none');
+  $('cat-'+name).classList.add('active');
+  $('cat-'+name+'-tabs').style.display='flex';
+  tab(CAT_FIRST[name]);
+}
+
 // ── Quick search ───────────────────────────────────────────────
 function quickSearch(d){ $('searchInput').value=d; runLookup(); }
 
 // ── Main lookup ────────────────────────────────────────────────
+let isAnalyzing = false;
 async function runLookup(){
+  if(isAnalyzing) return;
   const raw=$('searchInput').value.trim(); if(!raw) return;
   const domain=norm(raw); if(!domain) return;
+
+  isAnalyzing = true;
+  const analyzeBtn = document.querySelector('.btn-analyze');
+  if(analyzeBtn){ analyzeBtn.disabled = true; analyzeBtn.textContent = 'Analyzing…'; }
 
   $('hero').className='hero compact';
   $('results').style.display='';
@@ -1058,7 +1103,7 @@ async function runLookup(){
   $('dnssecChainContent').innerHTML='<div class="card"><div class="load-box pulse-anim">'+sp+'Validating DNSSEC chain of trust…</div></div>';
 
   Object.keys(S).forEach(k=>S[k]=null);
-  tab('dns');
+  selectCat('core');
   go(domain);
 }
 
@@ -1117,6 +1162,9 @@ async function go(domain){
     fetch('/api/dnssec-chain',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({domain})})
       .then(r=>r.json()).then(d=>{ S.dnssecChain=d; renderDnssecChain(d); }),
   ]);
+  isAnalyzing = false;
+  const analyzeBtn = document.querySelector('.btn-analyze');
+  if(analyzeBtn){ analyzeBtn.disabled = false; analyzeBtn.textContent = 'Analyze →'; }
 }
 
 // ── Render: DNS ────────────────────────────────────────────────
@@ -1293,7 +1341,7 @@ function renderSsl(data){
     const fp256display=fp256short?fp256short.match(/.{1,32}/g)?.join(' '):'';
     const sha1Badge=c.sha1Signed?'<span class="pill err" style="font-size:9px">SHA-1 ⚠</span>':'';
     return `<div style="border-bottom:1px solid rgba(255,255,255,.05);${i===0?'background:rgba(6,182,212,.03)':''}">
-      <div style="padding:14px 16px;display:flex;align-items:center;gap:10px;cursor:pointer" onclick="this.parentElement.querySelector('.chain-body').style.display=this.parentElement.querySelector('.chain-body').style.display==='none'?'':'none'">
+      <div style="padding:14px 16px;display:flex;align-items:center;gap:10px;cursor:pointer" onclick="const b=this.parentElement.querySelector('.chain-body');const isHidden=b.style.display==='none';b.style.display=isHidden?'':'none';this.querySelector('.ch-chev').textContent=isHidden?'▲':'▼'">
         <span style="display:flex;flex-direction:column;align-items:center;gap:2px">
           ${i>0?`<span style="width:1px;height:14px;background:rgba(255,255,255,.1)"></span>`:''}
           <span style="width:9px;height:9px;border-radius:50%;background:${tc2};box-shadow:0 0 8px ${tc2}66;flex-shrink:0"></span>
@@ -1311,9 +1359,9 @@ function renderSsl(data){
           <div style="font-size:14px;font-weight:700;color:${dColor}">${daysLeft>0?daysLeft+'d':c.isExpired?'EXPIRED':'—'}</div>
           <div style="font-size:9px;color:var(--text-faint)">remaining</div>
         </div>
-        <span style="color:var(--text-faint);font-size:10px">▼</span>
+        <span class="ch-chev" style="color:var(--text-faint);font-size:10px">▲</span>
       </div>
-      <div class="chain-body" style="padding:0 16px 14px;display:none">
+      <div class="chain-body" style="padding:0 16px 14px">
         <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:8px;margin-bottom:10px">
           <div><span style="font-size:9px;color:var(--text-faint)">SUBJECT</span><div style="font-size:11px;color:var(--text-dim)">${esc(c.subject?.CN||'—')}</div>${c.subject?.O?`<div style="font-size:10px;color:var(--text-muted)">${esc(c.subject.O)}</div>`:''}</div>
           <div><span style="font-size:9px;color:var(--text-faint)">ISSUER</span><div style="font-size:11px;color:var(--text-dim)">${esc(c.issuer?.CN||'—')}</div></div>
