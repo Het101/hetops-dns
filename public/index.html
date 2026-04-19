@@ -7,6 +7,7 @@
   <meta name="description" content="Comprehensive domain intelligence: DNS records, WHOIS, SSL analysis, global propagation, security auditing.">
   <link rel="icon" href="/icon.svg" type="image/svg+xml">
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,400;0,600;0,700;1,800;1,900&family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/lucide@0.469.0/dist/umd/lucide.min.js"></script>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -372,9 +373,12 @@
     }
     .stat-card::after {
       content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px;
-      background: linear-gradient(90deg, var(--accent), var(--brand));
-      opacity: 0.6;
+      opacity: 0.7;
     }
+    .stats-row .stat-card:nth-child(1)::after { background: var(--accent); }
+    .stats-row .stat-card:nth-child(2)::after { background: var(--brand); }
+    .stats-row .stat-card:nth-child(3)::after { background: var(--warn); }
+    .stats-row .stat-card:nth-child(4)::after { background: var(--info); }
     .stat-lbl {
       font-size: 10px; font-weight: 700; letter-spacing: 0.14em;
       text-transform: uppercase; color: var(--text-faint); margin-bottom: 12px;
@@ -413,7 +417,8 @@
     .cat-tab[data-cat="network"].active { color: var(--info);   border-bottom-color: var(--info);   background: rgba(96,165,250,.08); }
     .cat-tab[data-cat="web"].active     { color: var(--accent); border-bottom-color: var(--accent); background: var(--accent-subtle); }
     .cat-tab[data-cat="intelligence"].active { color: #f97316; border-bottom-color: #f97316; background: rgba(249,115,22,.08); }
-    .cat-icon { font-size: 16px; line-height: 1; }
+    .cat-icon { display:flex; align-items:center; line-height:1; }
+    .cat-icon svg { width:15px; height:15px; flex-shrink:0; }
     .cat-label { font-size: 13px; }
     .cat-count {
       font-size: 10px; font-weight: 700; padding: 2px 7px;
@@ -445,7 +450,8 @@
       box-shadow: 0 0 0 1px rgba(6,182,212,.1), 0 2px 8px rgba(6,182,212,.08);
       text-shadow: 0 0 12px rgba(6,182,212,0.3);
     }
-    .tab-icon { font-size: 12px; }
+    .tab-icon { display:flex; align-items:center; }
+    .tab-icon svg { width:12px; height:12px; flex-shrink:0; }
 
     /* Pane animation */
     [id^="pane-"] { animation: paneReveal 0.28s ease; }
@@ -455,10 +461,10 @@
     }
 
     /* ══ DNS RECORDS ═════════════════════════════════════════════ */
-    .dns-grid { columns: 2; column-gap: 14px; }
-    .dns-card { break-inside: avoid; display: inline-block; width: 100%; margin-bottom: 14px; vertical-align: top; }
-    .dns-card.wide { column-span: all; display: block; }
-    .dns-meta-row { column-span: all; display: block; }
+    #dnsGrid { display: flex; flex-direction: column; gap: 14px; }
+    .dns-masonry-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; align-items: start; }
+    .dns-col { display: flex; flex-direction: column; gap: 14px; }
+    @media (max-width: 860px) { .dns-masonry-grid { grid-template-columns: 1fr; } }
     .dns-card-head {
       padding: 13px 18px; border-bottom: 1px solid var(--border);
       display: flex; align-items: center; justify-content: space-between; gap: 8px;
@@ -498,7 +504,7 @@
     .record-annot { padding: 8px 16px; font-size: 11px; border-top: 1px solid; }
 
     /* ══ WHOIS ═══════════════════════════════════════════════════ */
-    .whois-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+    .whois-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; align-items: start; }
     .whois-table { overflow: hidden; }
     .wrow {
       display: grid; grid-template-columns: 155px minmax(0,1fr); gap: 12px;
@@ -516,14 +522,14 @@
     .raw-pre { padding: 18px; font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--text-muted); overflow-x: auto; white-space: pre-wrap; word-break: break-all; border-top: 1px solid var(--border); max-height: 360px; overflow-y: auto; }
 
     /* ══ SSL ═════════════════════════════════════════════════════ */
-    .ssl-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+    .ssl-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; align-items: start; }
     .irow { display: flex; justify-content: space-between; align-items: baseline; padding: 10px 0; border-bottom: 1px solid rgba(255,255,255,0.03); gap: 16px; }
     .irow:last-child { border-bottom: none; }
     .ilabel { font-size: 12px; color: var(--text-muted); flex-shrink: 0; }
     .ivalue { font-family: 'JetBrains Mono', monospace; font-size: 12px; color: var(--text-dim); text-align: right; word-break: break-all; overflow-wrap: anywhere; min-width: 0; }
 
     /* ══ SECURITY ════════════════════════════════════════════════ */
-    .sec-layout { display: grid; grid-template-columns: 220px 1fr; gap: 14px; }
+    .sec-layout { display: grid; grid-template-columns: 220px 1fr; gap: 14px; align-items: start; }
     .chk-row {
       display: flex; align-items: flex-start; gap: 14px;
       padding: 14px 18px; border-bottom: 1px solid rgba(255,255,255,0.03);
@@ -574,7 +580,7 @@
     .port-badge.closed { background: rgba(255,255,255,0.03); color: var(--text-faint); border: 1px solid var(--border); }
 
     /* ══ GEO ═════════════════════════════════════════════════════ */
-    .geo-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+    .geo-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; align-items: start; }
 
     /* ══ PILLS ═══════════════════════════════════════════════════ */
     .pill {
@@ -591,6 +597,48 @@
     .pill.err    { background: rgba(239,68,68,0.1);   border-color: rgba(239,68,68,0.3);   color: var(--err); }
     .pill.purple { background: rgba(167,139,250,0.1); border-color: rgba(167,139,250,0.3); color: var(--purple); }
     .pill.info   { background: rgba(96,165,250,0.1);  border-color: rgba(96,165,250,0.3);  color: var(--info); }
+
+    /* ══ TAB HEALTH DOTS ════════════════════════════════════════ */
+    .tab-health {
+      width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0;
+      display: none; margin-left: 2px;
+    }
+    .tab-health.ok   { display:block; background:var(--ok);   box-shadow:0 0 5px rgba(34,197,94,.7); }
+    .tab-health.warn { display:block; background:var(--warn);  box-shadow:0 0 5px rgba(245,158,11,.7); }
+    .tab-health.err  { display:block; background:var(--err);   box-shadow:0 0 5px rgba(239,68,68,.7); }
+
+    /* ══ SEARCH HISTORY ══════════════════════════════════════════ */
+    .search-wrap { position: relative; }
+    .search-history {
+      position: absolute; top: calc(100% + 8px); left: 0; right: 0;
+      background: rgba(8,8,28,0.98); border: 1px solid var(--border);
+      border-radius: 14px; overflow: hidden;
+      box-shadow: 0 12px 48px rgba(0,0,0,0.7), 0 0 0 1px rgba(6,182,212,0.08);
+      z-index: 50; backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px);
+    }
+    .history-header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 10px 16px 6px;
+    }
+    .history-header-label {
+      font-size: 10px; font-weight: 700; letter-spacing: 0.12em;
+      text-transform: uppercase; color: var(--text-faint);
+    }
+    .history-clear-btn {
+      font-size: 11px; color: var(--text-faint); background: none; border: none;
+      cursor: pointer; padding: 2px 6px; border-radius: 4px; transition: color 0.15s;
+    }
+    .history-clear-btn:hover { color: var(--err); }
+    .history-item {
+      display: flex; align-items: center; gap: 10px; width: 100%;
+      padding: 10px 16px; background: none; border: none;
+      border-top: 1px solid rgba(255,255,255,0.03);
+      color: var(--text-muted); cursor: pointer; transition: all 0.15s;
+      text-align: left;
+    }
+    .history-item:hover { background: rgba(6,182,212,0.06); color: var(--text); }
+    .history-item svg { width:12px; height:12px; flex-shrink:0; color:var(--text-faint); }
+    .history-domain { font-family: 'JetBrains Mono', monospace; font-size: 13px; flex: 1; }
 
     /* ══ UTILS ═══════════════════════════════════════════════════ */
     .sec-label {
@@ -641,11 +689,73 @@
     }
     .footer-wm {
       font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 900; font-style: italic;
-      font-size: 20px; letter-spacing: -0.5px; margin-bottom: 8px;
+      font-size: 20px; letter-spacing: -0.5px; margin-bottom: 12px;
     }
     .footer-wm .het { color: var(--text); }
     .footer-wm .ops { color: var(--brand); text-shadow: 0 0 20px var(--brand-glow); }
-    .footer-sub { font-size: 12px; color: var(--text-faint); }
+    .footer-links {
+      display: flex; align-items: center; gap: 6px;
+      justify-content: center; flex-wrap: wrap; margin-bottom: 12px;
+    }
+    .footer-link {
+      font-size: 12px; color: var(--text-faint); text-decoration: none;
+      padding: 4px 10px; border-radius: 6px; transition: color 0.15s, background 0.15s;
+    }
+    .footer-link:hover { color: var(--accent); background: rgba(6,182,212,0.06); }
+    .footer-dot { font-size: 12px; color: rgba(255,255,255,0.1); }
+    .footer-sub { font-size: 11px; color: rgba(241,245,249,0.18); }
+
+    /* ══ EXPORT BUTTON ═══════════════════════════════════════════ */
+    .btn-export {
+      background: rgba(255,255,255,.05); border: 1px solid var(--border);
+      color: var(--text-muted); padding: 8px 14px; border-radius: 10px;
+      font-size: 12px; font-weight: 600; cursor: pointer; white-space: nowrap;
+      font-family: 'Space Grotesk', sans-serif; transition: all .2s;
+      display: flex; align-items: center; gap: 6px;
+    }
+    .btn-export:hover { background: rgba(16,185,129,.12); border-color: var(--brand-border); color: var(--brand); }
+    .btn-export svg { width:13px; height:13px; flex-shrink:0; }
+
+    /* ══ MOBILE NAV ══════════════════════════════════════════════ */
+    .nav-mobile-btn {
+      display: none; background: none; border: 1px solid var(--border);
+      border-radius: 8px; color: var(--text-muted); padding: 7px;
+      cursor: pointer; align-items: center; justify-content: center;
+      transition: all 0.18s;
+    }
+    .nav-mobile-btn:hover { background: rgba(255,255,255,0.05); border-color: var(--border-hi); color: var(--text); }
+    .nav-mobile-btn svg { width:18px; height:18px; }
+    .mobile-nav-overlay {
+      display: none; position: fixed; inset: 0; z-index: 200;
+      background: rgba(5,5,20,0.97); backdrop-filter: blur(24px);
+      -webkit-backdrop-filter: blur(24px);
+      flex-direction: column; padding: 24px;
+    }
+    .mobile-nav-overlay.open { display: flex; animation: mobileNavIn 0.22s ease; }
+    @keyframes mobileNavIn { from{opacity:0;transform:translateY(-8px)} to{opacity:1;transform:translateY(0)} }
+    .mobile-nav-header {
+      display: flex; align-items: center; justify-content: space-between; margin-bottom: 48px;
+    }
+    .mobile-nav-close {
+      background: none; border: 1px solid var(--border); border-radius: 8px;
+      color: var(--text-muted); padding: 8px; cursor: pointer; display: flex;
+      align-items: center; transition: all 0.15s;
+    }
+    .mobile-nav-close:hover { border-color: var(--border-hi); color: var(--text); }
+    .mobile-nav-close svg { width:18px; height:18px; }
+    .mobile-nav-links { display: flex; flex-direction: column; gap: 4px; }
+    .mobile-nav-link {
+      font-size: 17px; font-weight: 600; color: var(--text-dim);
+      text-decoration: none; padding: 14px 16px; border-radius: 12px;
+      transition: all 0.15s; display: flex; align-items: center; gap: 14px;
+    }
+    .mobile-nav-link:hover { color: var(--text); background: rgba(255,255,255,0.05); }
+    .mobile-nav-link.active { color: var(--brand); background: var(--brand-subtle); }
+    .mobile-nav-link svg { width:18px; height:18px; }
+    @media (max-width: 640px) {
+      .nav-links { display: none; }
+      .nav-mobile-btn { display: flex; }
+    }
 
     /* ══ RESPONSIVE ══════════════════════════════════════════════ */
     @media (max-width: 860px) {
@@ -692,9 +802,30 @@
         <a href="https://status.hetops.dev" class="nav-link" target="_blank" rel="noopener">Status</a>
         <a href="/"                         class="nav-link active">DNS</a>
       </nav>
+      <button class="nav-mobile-btn" id="mobileNavBtn" aria-label="Open navigation" onclick="document.getElementById('mobileNavOverlay').classList.add('open')">
+        <i data-lucide="menu"></i>
+      </button>
     </div>
   </div>
 </nav>
+
+<!-- ── Mobile Navigation ──────────────────────────────────── -->
+<div class="mobile-nav-overlay" id="mobileNavOverlay" role="dialog" aria-modal="true" aria-label="Navigation">
+  <div class="mobile-nav-header">
+    <div class="logo-wordmark" style="font-family:'Plus Jakarta Sans',sans-serif;font-weight:900;font-style:italic;font-size:22px;letter-spacing:-0.5px">
+      <span style="color:var(--text)">HET</span><span style="color:var(--brand);text-shadow:0 0 20px var(--brand-glow)">OPS_</span>
+    </div>
+    <button class="mobile-nav-close" aria-label="Close navigation" onclick="document.getElementById('mobileNavOverlay').classList.remove('open')">
+      <i data-lucide="x"></i>
+    </button>
+  </div>
+  <nav class="mobile-nav-links">
+    <a href="https://hetops.dev"        class="mobile-nav-link" target="_blank" rel="noopener"><i data-lucide="user"></i>Portfolio</a>
+    <a href="https://tools.hetops.dev"  class="mobile-nav-link" target="_blank" rel="noopener"><i data-lucide="wrench"></i>Tools</a>
+    <a href="https://status.hetops.dev" class="mobile-nav-link" target="_blank" rel="noopener"><i data-lucide="activity"></i>Status</a>
+    <a href="/"                         class="mobile-nav-link active"><i data-lucide="search"></i>DNS</a>
+  </nav>
+</div>
 
 <div class="container">
 
@@ -748,7 +879,9 @@
           <div class="score-lbl">Health Score</div>
         </div>
         <div class="grade-num" id="gradeLetter"></div>
-        <button onclick="exportResults()" title="Export all results as JSON" style="background:rgba(255,255,255,.05);border:1px solid var(--border);color:var(--text-muted);padding:8px 14px;border-radius:10px;font-size:12px;font-weight:600;cursor:pointer;font-family:'Space Grotesk',sans-serif;transition:all .2s;white-space:nowrap" onmouseover="this.style.background='rgba(16,185,129,.12)';this.style.borderColor='var(--brand-border)';this.style.color='var(--brand)'" onmouseout="this.style.background='rgba(255,255,255,.05)';this.style.borderColor='var(--border)';this.style.color='var(--text-muted)'">↓ Export JSON</button>
+        <button onclick="exportResults()" class="btn-export" title="Export all results as JSON">
+          <i data-lucide="download"></i>Export JSON
+        </button>
       </div>
     </div>
 
@@ -777,63 +910,63 @@
       <!-- Category row -->
       <div class="cat-tabs">
         <button class="cat-tab active" id="cat-core"          data-cat="core"          onclick="selectCat('core')">
-          <span class="cat-icon">🔍</span><span class="cat-label">Core</span><span class="cat-count">4</span>
+          <i class="cat-icon" data-lucide="search"></i><span class="cat-label">Core</span><span class="cat-count">4</span><span class="tab-health" id="health-core"></span>
         </button>
         <button class="cat-tab"        id="cat-security"      data-cat="security"      onclick="selectCat('security')">
-          <span class="cat-icon">🛡</span><span class="cat-label">Security</span><span class="cat-count">9</span>
+          <i class="cat-icon" data-lucide="shield"></i><span class="cat-label">Security</span><span class="cat-count">9</span><span class="tab-health" id="health-security"></span>
         </button>
         <button class="cat-tab"        id="cat-email"         data-cat="email"         onclick="selectCat('email')">
-          <span class="cat-icon">📧</span><span class="cat-label">Email</span><span class="cat-count">3</span>
+          <i class="cat-icon" data-lucide="mail"></i><span class="cat-label">Email</span><span class="cat-count">3</span><span class="tab-health" id="health-email"></span>
         </button>
         <button class="cat-tab"        id="cat-network"       data-cat="network"       onclick="selectCat('network')">
-          <span class="cat-icon">🌐</span><span class="cat-label">Network</span><span class="cat-count">3</span>
+          <i class="cat-icon" data-lucide="network"></i><span class="cat-label">Network</span><span class="cat-count">3</span><span class="tab-health" id="health-network"></span>
         </button>
         <button class="cat-tab"        id="cat-web"           data-cat="web"           onclick="selectCat('web')">
-          <span class="cat-icon">🌩</span><span class="cat-label">Web</span><span class="cat-count">5</span>
+          <i class="cat-icon" data-lucide="monitor"></i><span class="cat-label">Web</span><span class="cat-count">5</span><span class="tab-health" id="health-web"></span>
         </button>
         <button class="cat-tab"        id="cat-intelligence"  data-cat="intelligence"  onclick="selectCat('intelligence')">
-          <span class="cat-icon">📜</span><span class="cat-label">Intelligence</span><span class="cat-count">2</span>
+          <i class="cat-icon" data-lucide="eye"></i><span class="cat-label">Intelligence</span><span class="cat-count">2</span><span class="tab-health" id="health-intelligence"></span>
         </button>
       </div>
       <!-- Sub-tabs row -->
       <div class="sub-tabs-wrap">
         <div class="sub-tabs-group" id="cat-core-tabs">
-          <button class="tab-btn active" id="tab-dns"          onclick="tab('dns')"><span class="tab-icon">🔍</span>DNS</button>
-          <button class="tab-btn"        id="tab-whois"        onclick="tab('whois')"><span class="tab-icon">📋</span>WHOIS</button>
-          <button class="tab-btn"        id="tab-geoip"        onclick="tab('geoip')"><span class="tab-icon">🌍</span>GeoIP</button>
-          <button class="tab-btn"        id="tab-propagation"  onclick="tab('propagation')"><span class="tab-icon">📡</span>Propagation</button>
+          <button class="tab-btn active" id="tab-dns"          onclick="tab('dns')"><i class="tab-icon" data-lucide="search"></i>DNS</button>
+          <button class="tab-btn"        id="tab-whois"        onclick="tab('whois')"><i class="tab-icon" data-lucide="file-text"></i>WHOIS</button>
+          <button class="tab-btn"        id="tab-geoip"        onclick="tab('geoip')"><i class="tab-icon" data-lucide="map-pin"></i>GeoIP</button>
+          <button class="tab-btn"        id="tab-propagation"  onclick="tab('propagation')"><i class="tab-icon" data-lucide="radio"></i>Propagation</button>
         </div>
         <div class="sub-tabs-group" id="cat-security-tabs" style="display:none">
-          <button class="tab-btn"        id="tab-ssl"          onclick="tab('ssl')"><span class="tab-icon">🔒</span>SSL</button>
-          <button class="tab-btn"        id="tab-security"     onclick="tab('security')"><span class="tab-icon">🛡</span>Security</button>
-          <button class="tab-btn"        id="tab-headers"      onclick="tab('headers')"><span class="tab-icon">🔧</span>Headers</button>
-          <button class="tab-btn"        id="tab-csp"          onclick="tab('csp')"><span class="tab-icon">🧱</span>CSP</button>
-          <button class="tab-btn"        id="tab-dnssec"       onclick="tab('dnssec')"><span class="tab-icon">🔐</span>DNSSEC</button>
-          <button class="tab-btn"        id="tab-dnssec-chain" onclick="tab('dnssec-chain')"><span class="tab-icon">⛓</span>DNSSEC Chain</button>
-          <button class="tab-btn"        id="tab-ocsp"         onclick="tab('ocsp')"><span class="tab-icon">✅</span>OCSP</button>
-          <button class="tab-btn"        id="tab-hsts"         onclick="tab('hsts')"><span class="tab-icon">🚀</span>HSTS</button>
-          <button class="tab-btn"        id="tab-takeover"     onclick="tab('takeover')"><span class="tab-icon">⚠️</span>Takeover</button>
+          <button class="tab-btn"        id="tab-ssl"          onclick="tab('ssl')"><i class="tab-icon" data-lucide="lock"></i>SSL</button>
+          <button class="tab-btn"        id="tab-security"     onclick="tab('security')"><i class="tab-icon" data-lucide="shield"></i>Security</button>
+          <button class="tab-btn"        id="tab-headers"      onclick="tab('headers')"><i class="tab-icon" data-lucide="settings"></i>Headers</button>
+          <button class="tab-btn"        id="tab-csp"          onclick="tab('csp')"><i class="tab-icon" data-lucide="layers"></i>CSP</button>
+          <button class="tab-btn"        id="tab-dnssec"       onclick="tab('dnssec')"><i class="tab-icon" data-lucide="key"></i>DNSSEC</button>
+          <button class="tab-btn"        id="tab-dnssec-chain" onclick="tab('dnssec-chain')"><i class="tab-icon" data-lucide="link"></i>DNSSEC Chain</button>
+          <button class="tab-btn"        id="tab-ocsp"         onclick="tab('ocsp')"><i class="tab-icon" data-lucide="check-circle"></i>OCSP</button>
+          <button class="tab-btn"        id="tab-hsts"         onclick="tab('hsts')"><i class="tab-icon" data-lucide="zap"></i>HSTS</button>
+          <button class="tab-btn"        id="tab-takeover"     onclick="tab('takeover')"><i class="tab-icon" data-lucide="alert-triangle"></i>Takeover</button>
         </div>
         <div class="sub-tabs-group" id="cat-email-tabs" style="display:none">
-          <button class="tab-btn"        id="tab-emailsec"     onclick="tab('emailsec')"><span class="tab-icon">📧</span>Email Auth</button>
-          <button class="tab-btn"        id="tab-mx"           onclick="tab('mx')"><span class="tab-icon">📨</span>MX</button>
-          <button class="tab-btn"        id="tab-mtasts"       onclick="tab('mtasts')"><span class="tab-icon">🔏</span>MTA-STS</button>
+          <button class="tab-btn"        id="tab-emailsec"     onclick="tab('emailsec')"><i class="tab-icon" data-lucide="mail"></i>Email Auth</button>
+          <button class="tab-btn"        id="tab-mx"           onclick="tab('mx')"><i class="tab-icon" data-lucide="send"></i>MX</button>
+          <button class="tab-btn"        id="tab-mtasts"       onclick="tab('mtasts')"><i class="tab-icon" data-lucide="shield-check"></i>MTA-STS</button>
         </div>
         <div class="sub-tabs-group" id="cat-network-tabs" style="display:none">
-          <button class="tab-btn"        id="tab-ipv6"         onclick="tab('ipv6')"><span class="tab-icon">🌐</span>IPv6</button>
-          <button class="tab-btn"        id="tab-trace"        onclick="tab('trace')"><span class="tab-icon">📶</span>Trace</button>
-          <button class="tab-btn"        id="tab-ports"        onclick="tab('ports')"><span class="tab-icon">🔌</span>Ports</button>
+          <button class="tab-btn"        id="tab-ipv6"         onclick="tab('ipv6')"><i class="tab-icon" data-lucide="server"></i>IPv6</button>
+          <button class="tab-btn"        id="tab-trace"        onclick="tab('trace')"><i class="tab-icon" data-lucide="activity"></i>Trace</button>
+          <button class="tab-btn"        id="tab-ports"        onclick="tab('ports')"><i class="tab-icon" data-lucide="plug"></i>Ports</button>
         </div>
         <div class="sub-tabs-group" id="cat-web-tabs" style="display:none">
-          <button class="tab-btn"        id="tab-http"         onclick="tab('http')"><span class="tab-icon">🌩</span>HTTP</button>
-          <button class="tab-btn"        id="tab-redirect"     onclick="tab('redirect')"><span class="tab-icon">↪</span>Redirect</button>
-          <button class="tab-btn"        id="tab-tech"         onclick="tab('tech')"><span class="tab-icon">⚙️</span>Tech</button>
-          <button class="tab-btn"        id="tab-cors"         onclick="tab('cors')"><span class="tab-icon">🔗</span>CORS</button>
-          <button class="tab-btn"        id="tab-robots"       onclick="tab('robots')"><span class="tab-icon">🤖</span>Robots</button>
+          <button class="tab-btn"        id="tab-http"         onclick="tab('http')"><i class="tab-icon" data-lucide="monitor"></i>HTTP</button>
+          <button class="tab-btn"        id="tab-redirect"     onclick="tab('redirect')"><i class="tab-icon" data-lucide="arrow-right"></i>Redirect</button>
+          <button class="tab-btn"        id="tab-tech"         onclick="tab('tech')"><i class="tab-icon" data-lucide="cpu"></i>Tech</button>
+          <button class="tab-btn"        id="tab-cors"         onclick="tab('cors')"><i class="tab-icon" data-lucide="external-link"></i>CORS</button>
+          <button class="tab-btn"        id="tab-robots"       onclick="tab('robots')"><i class="tab-icon" data-lucide="bot"></i>Robots</button>
         </div>
         <div class="sub-tabs-group" id="cat-intelligence-tabs" style="display:none">
-          <button class="tab-btn"        id="tab-ct"           onclick="tab('ct')"><span class="tab-icon">📜</span>CT Logs</button>
-          <button class="tab-btn"        id="tab-typosquat"    onclick="tab('typosquat')"><span class="tab-icon">🎭</span>Typosquat</button>
+          <button class="tab-btn"        id="tab-ct"           onclick="tab('ct')"><i class="tab-icon" data-lucide="scroll"></i>CT Logs</button>
+          <button class="tab-btn"        id="tab-typosquat"    onclick="tab('typosquat')"><i class="tab-icon" data-lucide="alert-octagon"></i>Typosquat</button>
         </div>
       </div>
     </div>
@@ -984,6 +1117,17 @@
 <!-- ── Footer ────────────────────────────────────────────── -->
 <footer class="footer">
   <div class="footer-wm"><span class="het">HET</span><span class="ops">OPS_</span></div>
+  <div class="footer-links">
+    <a href="https://hetops.dev"        class="footer-link" target="_blank" rel="noopener">Portfolio</a>
+    <span class="footer-dot">·</span>
+    <a href="https://tools.hetops.dev"  class="footer-link" target="_blank" rel="noopener">Tools</a>
+    <span class="footer-dot">·</span>
+    <a href="https://status.hetops.dev" class="footer-link" target="_blank" rel="noopener">Status</a>
+    <span class="footer-dot">·</span>
+    <a href="https://hub.hetops.dev"    class="footer-link" target="_blank" rel="noopener">Hub</a>
+    <span class="footer-dot">·</span>
+    <a href="https://n8n.hetops.dev"    class="footer-link" target="_blank" rel="noopener">n8n</a>
+  </div>
   <p class="footer-sub">DNS Intelligence — Part of the HetOps ecosystem</p>
 </footer>
 
@@ -1058,6 +1202,8 @@ async function runLookup(){
   const domain=norm(raw); if(!domain) return;
 
   isAnalyzing = true;
+  saveHistory(domain);
+  hideHistoryDropdown();
   const analyzeBtn = document.querySelector('.btn-analyze');
   if(analyzeBtn){ analyzeBtn.disabled = true; analyzeBtn.textContent = 'Analyzing…'; }
 
@@ -1075,7 +1221,7 @@ async function runLookup(){
   });
 
   const sp='<div class="load-spinner"></div>';
-  $('dnsGrid').innerHTML='<div class="card dns-card wide"><div class="load-box pulse-anim">'+sp+'Resolving DNS records…</div></div>';
+  $('dnsGrid').innerHTML='<div class="card"><div class="load-box pulse-anim">'+sp+'Resolving DNS records…</div></div>';
   $('whoisContent').innerHTML='<div class="load-box pulse-anim">'+sp+'Fetching WHOIS data…</div>';
   $('sslContent').innerHTML='<div class="card"><div class="load-box pulse-anim">'+sp+'Checking SSL certificate…</div></div>';
   $('secContent').innerHTML='<div class="card"><div class="load-box pulse-anim">'+sp+'Running security checks…</div></div>';
@@ -1110,11 +1256,11 @@ async function runLookup(){
 async function go(domain){
   await Promise.allSettled([
     fetch('/api/dns-lookup',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({domain,resolver:'balanced'})})
-      .then(r=>r.json()).then(d=>{ S.dns=d; renderDns(d); setStat('sDns',d?.summary?.totalRecords??d?.totals?.records??0,''); renderSec(); score(); }),
+      .then(r=>r.json()).then(d=>{ S.dns=d; renderDns(d); setStat('sDns',d?.summary?.totalRecords??d?.totals?.records??0,''); renderSec(); score(); updateTabHealth(); }),
     fetch('/api/whois',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({domain})})
       .then(r=>r.json()).then(d=>{ S.whois=d; renderWhois(d); }),
     fetch('/api/ssl',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({domain})})
-      .then(r=>r.json()).then(d=>{ S.ssl=d; renderSsl(d); sslStat(d); score(); }),
+      .then(r=>r.json()).then(d=>{ S.ssl=d; renderSsl(d); sslStat(d); score(); updateTabHealth(); }),
     fetch('/api/security-headers',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({domain})})
       .then(r=>r.json()).then(d=>{ S.headers=d; renderHeaders(d); }),
     fetch('/api/dnssec',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({domain})})
@@ -1130,7 +1276,7 @@ async function go(domain){
     fetch('/api/tech',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({domain})})
       .then(r=>r.json()).then(d=>{ S.tech=d; renderTech(d); }),
     fetch('/api/http',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({domain})})
-      .then(r=>r.json()).then(d=>{ S.http=d; renderHttp(d); }),
+      .then(r=>r.json()).then(d=>{ S.http=d; renderHttp(d); updateTabHealth(); }),
     fetch('/api/redirect',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({domain})})
       .then(r=>r.json()).then(d=>{ S.redirect=d; renderRedirect(d); }),
     fetch('/api/cors',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({domain})})
@@ -1148,7 +1294,7 @@ async function go(domain){
     fetch('/api/mta-sts',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({domain})})
       .then(r=>r.json()).then(d=>{ S.mtasts=d; renderMtasts(d); }),
     fetch('/api/email-security',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({domain})})
-      .then(r=>r.json()).then(d=>{ S.emailsec=d; renderEmailSec(d); emailSecStat(d); score(); }),
+      .then(r=>r.json()).then(d=>{ S.emailsec=d; renderEmailSec(d); emailSecStat(d); score(); updateTabHealth(); }),
     fetch('/api/subdomain-takeover',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({domain})})
       .then(r=>r.json()).then(d=>{ S.takeover=d; renderTakeover(d); }),
     fetch('/api/hsts-preload',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({domain})})
@@ -1156,9 +1302,9 @@ async function go(domain){
     fetch('/api/csp-analyzer',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({domain})})
       .then(r=>r.json()).then(d=>{ S.csp=d; renderCsp(d); }),
     fetch('/api/typosquat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({domain})})
-      .then(r=>r.json()).then(d=>{ S.typosquat=d; renderTyposquat(d); }),
+      .then(r=>r.json()).then(d=>{ S.typosquat=d; renderTyposquat(d); updateTabHealth(); }),
     fetch('/api/ipv6',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({domain})})
-      .then(r=>r.json()).then(d=>{ S.ipv6=d; renderIpv6(d); }),
+      .then(r=>r.json()).then(d=>{ S.ipv6=d; renderIpv6(d); updateTabHealth(); }),
     fetch('/api/dnssec-chain',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({domain})})
       .then(r=>r.json()).then(d=>{ S.dnssecChain=d; renderDnssecChain(d); }),
   ]);
@@ -1167,29 +1313,30 @@ async function go(domain){
   if(analyzeBtn){ analyzeBtn.disabled = false; analyzeBtn.textContent = 'Analyze →'; }
 }
 
-// ── Render: DNS ────────────────────────────────────────────────
+// ── Render: DNS (masonry layout) ────────────────────────────────
 function renderDns(data){
   const res=data.results||{};
   const ORDER=['A','AAAA','CNAME','MX','NS','TXT','SOA','CAA','SRV','PTR'];
   const WIDE=new Set(['TXT','SOA','CAA','SRV']);
   const active=ORDER.filter(t=>(res[t]||[]).length>0);
   if(!active.length){
-    $('dnsGrid').innerHTML='<div class="card dns-card wide"><div class="load-box" style="color:var(--text-muted)">No DNS records found.</div></div>';
+    $('dnsGrid').innerHTML='<div class="card"><div class="load-box" style="color:var(--text-muted)">No DNS records found.</div></div>';
     return;
   }
-  let html='';
-  for(const type of active){
+
+  // Build a card object per record type
+  const cards=active.map(type=>{
     const recs=res[type]||[];
     const c=tc(type); const wide=WIDE.has(type);
     let rows='';
     for(const r of recs){
-      let val='', meta='';
+      let val='',meta='';
       const sv=safeCopy(r.value);
-      if(type==='MX'){ val=esc(r.value); meta=`<span class="rmeta">Priority ${esc(r.priority)}</span>`; }
-      else if(type==='SOA'){ const d=r.details||{}; val=esc(r.value); meta=`<span class="rmeta">serial ${d.serial} · refresh ${d.refresh}s · retry ${d.retry}s · expire ${d.expire}s</span>`; }
-      else if(type==='SRV'){ val=esc(r.value); meta=`<span class="rmeta">priority ${r.priority} · weight ${r.weight}</span>`; }
-      else if(type==='CAA'){ val=esc(r.value); meta=`<span class="rmeta">tag: ${esc(r.issue||'')}${r.critical?' · critical':''}</span>`; }
-      else { val=`<span style="word-break:break-all">${esc(r.value)}</span>`; }
+      if(type==='MX'){val=esc(r.value);meta=`<span class="rmeta">Priority ${esc(r.priority)}</span>`;}
+      else if(type==='SOA'){const d=r.details||{};val=esc(r.value);meta=`<span class="rmeta">serial ${d.serial} · refresh ${d.refresh}s · retry ${d.retry}s · expire ${d.expire}s</span>`;}
+      else if(type==='SRV'){val=esc(r.value);meta=`<span class="rmeta">priority ${r.priority} · weight ${r.weight}</span>`;}
+      else if(type==='CAA'){val=esc(r.value);meta=`<span class="rmeta">tag: ${esc(r.issue||'')}${r.critical?' · critical':''}</span>`;}
+      else{val=`<span style="word-break:break-all">${esc(r.value)}</span>`;}
       const ttl=r.ttl!=null?`<span class="ttl-tag">TTL ${r.ttl}</span>`:'';
       rows+=`<div class="record-row">
         <div class="rtype-badge" style="background:${c.bg};border:1px solid ${c.bd};color:${c.fg}">${type}</div>
@@ -1203,7 +1350,7 @@ function renderDns(data){
       const dmarc=recs.find(r=>r.value.toLowerCase().startsWith('v=dmarc1'));
       if(spf||dmarc) annot=`<div class="record-annot" style="background:rgba(245,158,11,.05);border-color:rgba(245,158,11,.15);color:rgba(245,158,11,.75)">${[spf?'✓ SPF present':null,dmarc?'✓ DMARC present':null].filter(Boolean).join(' · ')}</div>`;
     }
-    html+=`<div class="card dns-card${wide?' wide':''}">
+    const html=`<div class="card dns-card">
       <div class="dns-card-head">
         <div class="dns-card-title">
           <span class="rtype-badge" style="background:${c.bg};border:1px solid ${c.bd};color:${c.fg};font-size:10px">${type}</span>
@@ -1213,8 +1360,26 @@ function renderDns(data){
       </div>
       ${rows}${annot}
     </div>`;
+    // Estimate pixel height for masonry distribution
+    const estH=52+recs.length*46+(annot?28:0);
+    return {html,wide,estH};
+  });
+
+  // Full-width cards (TXT, SOA, CAA, SRV)
+  const wideCards=cards.filter(c=>c.wide);
+  // Narrow cards — greedy two-column balance by estimated height
+  const narrowCards=cards.filter(c=>!c.wide);
+  let colL='',colR='',hL=0,hR=0;
+  for(const card of narrowCards){
+    if(hL<=hR){colL+=card.html;hL+=card.estH;}
+    else{colR+=card.html;hR+=card.estH;}
   }
-  if(data.durationMs) html+=`<div class="dns-meta-row" style="font-size:11px;color:var(--text-faint);text-align:right;padding:6px 2px">Resolved in ${data.durationMs}ms · ${esc(data.resolver?.profile||'balanced')} resolver</div>`;
+
+  let html=wideCards.map(c=>c.html).join('');
+  if(colL||colR){
+    html+=`<div class="dns-masonry-grid"><div class="dns-col">${colL}</div><div class="dns-col">${colR}</div></div>`;
+  }
+  if(data.durationMs) html+=`<div style="font-size:11px;color:var(--text-faint);text-align:right;padding:6px 2px">Resolved in ${data.durationMs}ms · ${esc(data.resolver?.profile||'balanced')} resolver</div>`;
   $('dnsGrid').innerHTML=html;
 }
 
@@ -2188,6 +2353,88 @@ function emailSecStat(d){
   setStat('sEmail',s+'%',s>=80?'ok':s>=50?'warn':'err');
 }
 
+// ── Tab Health Indicators ──────────────────────────────────────
+function setTabHealth(cat,status){
+  const el=$('health-'+cat);
+  if(el){ el.className='tab-health '+status; }
+}
+function updateTabHealth(){
+  // Core: DNS records present
+  if(S.dns){
+    const hasRec=Object.values(S.dns.results||{}).some(r=>r&&r.length>0);
+    setTabHealth('core',hasRec?'ok':'warn');
+  }
+  // Security: SSL grade + header score
+  if(S.ssl&&!S.ssl.error&&S.headers){
+    const sslScore=S.ssl.grade?.score||0;
+    const hScore=S.headers.analysis?.score||0;
+    setTabHealth('security',sslScore>=70&&hScore>=60?'ok':sslScore>=50||hScore>=40?'warn':'err');
+  } else if(S.ssl&&!S.ssl.error){
+    const s=S.ssl.grade?.score||0;
+    setTabHealth('security',s>=70?'ok':s>=50?'warn':'err');
+  }
+  // Email: overall email score
+  if(S.emailsec&&!S.emailsec.error){
+    const s=S.emailsec.overallScore||0;
+    setTabHealth('email',s>=80?'ok':s>=50?'warn':'err');
+  } else if(S.dns?.insights?.checks){
+    const c=S.dns.insights.checks;
+    const n=(c.spf?1:0)+(c.dmarc?1:0)+(c.mx?1:0);
+    setTabHealth('email',n===3?'ok':n>=2?'warn':'err');
+  }
+  // Network: IPv6
+  if(S.ipv6){
+    setTabHealth('network',S.ipv6.ipv6Enabled?'ok':'warn');
+  }
+  // Web: HTTP score
+  if(S.http&&!S.http.error){
+    const s=S.http.score||0;
+    setTabHealth('web',s>=80?'ok':s>=50?'warn':'err');
+  }
+  // Intelligence: typosquat hits
+  if(S.typosquat&&!S.typosquat.error){
+    const hits=(S.typosquat.results||[]).filter(r=>r.registered).length;
+    setTabHealth('intelligence',hits===0?'ok':hits<=3?'warn':'err');
+  }
+}
+
+// ── Search History ─────────────────────────────────────────────
+const HIST_KEY='hetops_dns_hist';
+function saveHistory(d){
+  let h=getHistory();
+  h=[d,...h.filter(x=>x!==d)].slice(0,8);
+  try{localStorage.setItem(HIST_KEY,JSON.stringify(h));}catch(e){}
+}
+function getHistory(){
+  try{return JSON.parse(localStorage.getItem(HIST_KEY)||'[]');}catch(e){return [];}
+}
+function showHistoryDropdown(){
+  const h=getHistory(); if(!h.length) return;
+  let dd=$('searchHistoryDd');
+  if(!dd){
+    dd=document.createElement('div');
+    dd.id='searchHistoryDd'; dd.className='search-history';
+    $('searchInput').closest('.search-wrap').appendChild(dd);
+  }
+  dd.innerHTML=`<div class="history-header">
+    <span class="history-header-label">Recent</span>
+    <button class="history-clear-btn" onclick="clearHistory()">Clear</button>
+  </div>`+h.map(d=>`<button class="history-item" onclick="quickSearch('${d}')">
+    <i data-lucide="clock" style="width:12px;height:12px;flex-shrink:0;color:var(--text-faint)"></i>
+    <span class="history-domain">${d}</span>
+  </button>`).join('');
+  dd.style.display='';
+  lucide.createIcons({nodes:[dd]});
+}
+function hideHistoryDropdown(){
+  const dd=$('searchHistoryDd');
+  if(dd) dd.style.display='none';
+}
+function clearHistory(){
+  try{localStorage.removeItem(HIST_KEY);}catch(e){}
+  hideHistoryDropdown();
+}
+
 // ── Export Results ─────────────────────────────────────────────
 function exportResults(){
   const domain=$('currentDomain').textContent||'unknown';
@@ -2479,8 +2726,24 @@ function renderDnssecChain(data){
     </div>`:''}`;
 }
 
-// ── Keyboard ───────────────────────────────────────────────────
+// ── Keyboard & search history events ──────────────────────────
 $('searchInput').addEventListener('keydown', e=>{ if(e.key==='Enter') runLookup(); });
+$('searchInput').addEventListener('focus', ()=>{ if(!$('searchInput').value) showHistoryDropdown(); });
+$('searchInput').addEventListener('input', ()=>{ if($('searchInput').value) hideHistoryDropdown(); else showHistoryDropdown(); });
+$('searchInput').addEventListener('blur', ()=>{ setTimeout(hideHistoryDropdown, 180); });
+document.addEventListener('keydown', e=>{
+  if(e.key==='Escape'){
+    document.getElementById('mobileNavOverlay')?.classList.remove('open');
+    hideHistoryDropdown();
+  }
+});
+
+// ── URL query param auto-run (?q=domain or ?domain=domain) ─────
+(function(){
+  const p=new URLSearchParams(window.location.search);
+  const d=p.get('q')||p.get('domain');
+  if(d){ $('searchInput').value=d; setTimeout(runLookup,120); }
+})();
 
 // ── Certificate Download ───────────────────────────────────────
 function downloadCert(index){
@@ -2511,6 +2774,9 @@ function downloadFile(content,filename,mimeType){
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
 }
+
+// ── Initialize icons ───────────────────────────────────────────
+lucide.createIcons();
 </script>
 </body>
 </html>
