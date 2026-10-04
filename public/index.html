@@ -1091,6 +1091,20 @@
     }
 
 
+    /* ══ CHANGE HISTORY ═══════════════════════════════════════════ */
+    .tl-list { max-height: 320px; overflow-y: auto; padding-right: 4px; }
+    .tl-day { font-size: 11.5px; color: var(--text-faint); margin: 12px 0 6px; }
+    .tl-day:first-child { margin-top: 0; }
+    .tl-ev { display: grid; grid-template-columns: 14px 1fr; gap: 8px; padding: 6px 0; }
+    .tl-dot { width: 8px; height: 8px; border-radius: 50%; margin-top: 6px; background: var(--info); }
+    .tl-ev.warn .tl-dot { background: var(--warn); }
+    .tl-ev.err .tl-dot { background: var(--err); }
+    .tl-dom { background: none; border: 0; padding: 0; color: var(--text); font: 600 13px var(--mono); cursor: pointer; }
+    .tl-dom:hover { color: var(--brand); text-decoration: underline; }
+    .tl-time { font-size: 11.5px; color: var(--text-faint); margin-left: 8px; }
+    .tl-txt { font-size: 12.5px; color: var(--text-dim); margin-top: 2px; line-height: 1.45; overflow-wrap: anywhere; }
+    .tl-empty { font-size: 12.5px; color: var(--text-muted); line-height: 1.5; }
+
     /* ══ DECLUTTER + NEW BITS ═════════════════════════════════════ */
     .domain-hdr { overflow: visible; }
     .search-kbd { font: 12px var(--mono); color: var(--text-faint); border: 1px solid var(--border-hi); border-radius: 6px; padding: 2px 7px; margin-right: 4px; }
@@ -3228,6 +3242,7 @@ function latestPerDomain(){
   return out;
 }
 function relTime(ts){
+  if(!ts||isNaN(ts)) return '';
   const s=Math.floor((Date.now()-ts)/1000);
   if(s<60) return 'just now';
   if(s<3600) return Math.floor(s/60)+'m ago';
@@ -3500,7 +3515,7 @@ function renderMonitor(){
       </div>
       <div class="mon-stats">${stats.join('')||'<span class="mon-stat">Not checked yet</span>'}</div>
       ${changes?`<div class="mon-changes">${changes}</div>`:''}
-      <div class="mon-checked">${s?('Last checked '+relTime(s.ts)):'Added '+relTime(w.addedAt)}</div>
+      <div class="mon-checked">${s&&s.ts?('Last checked '+relTime(s.ts)):w.addedAt?'Added '+relTime(w.addedAt):'Waiting for the first check'}</div>
     </div>`;
   }).join('');
   if(window.lucide) lucide.createIcons({ root: list });
@@ -3529,17 +3544,31 @@ function openMonitor(){
 }
 function closeMonitor(){ const o=$('monOverlay'); if(o.classList.contains('open')){ o.classList.remove('open'); releaseFocus(); } }
 
+// What the background monitor detected, grouped by day, newest first.
+function changeTimeline(events){
+  if(!events.length) return `<div class="tl-empty">No changes detected yet. Every certificate, SPF, DMARC, MX and nameserver change on your watched domains will be listed here.</div>`;
+  const tone=(c)=>/removed|weakened|expired|EXPIRED|blacklisted|Nameservers changed/i.test(c)?'err':/within|expires in/i.test(c)?'warn':'info';
+  let html='', lastDay='';
+  for(const e of events){
+    const day=new Date(e.ts).toLocaleDateString(undefined,{weekday:'short',day:'numeric',month:'short'});
+    if(day!==lastDay){ html+=`<div class="tl-day">${esc(day)}</div>`; lastDay=day; }
+    html+=`<div class="tl-ev ${tone(e.change)}"><span class="tl-dot"></span><div><button class="tl-dom" onclick="closeMonitor();quickSearch('${escAttr(e.domain)}')">${esc(e.domain)}</button><span class="tl-time">${esc(relTime(e.ts))}</span><div class="tl-txt">${esc(e.change)}</div></div></div>`;
+  }
+  return `<div class="tl-list">${html}</div>`;
+}
+
 // ── Alert delivery & developer API (signed-in account panel) ───
 async function renderAccountPanel(){
   const el=$('monAccount'); if(!el) return;
   if(!currentUser){ el.style.display='none'; el.innerHTML=''; return; }
   el.style.display='';
   el.innerHTML=`<div class="mon-acct-loading sc-scanning"><span class="load-spinner" style="width:14px;height:14px;border-width:2px"></span>Loading account settings…</div>`;
-  let settings={}, keys=[];
+  let settings={}, keys=[], events=[];
   try{
-    [settings, keys]=await Promise.all([
+    [settings, keys, events]=await Promise.all([
       fetch('/api/settings').then(r=>r.json()).catch(()=>({})),
       fetch('/api/keys').then(r=>r.json()).then(d=>d.keys||[]).catch(()=>[]),
+      fetch('/api/alerts/events?limit=50').then(r=>r.json()).then(d=>d.events||[]).catch(()=>[]),
     ]);
   }catch(e){}
   const keyRows=keys.length? keys.map(k=>`<div class="acct-key">
@@ -3548,6 +3577,10 @@ async function renderAccountPanel(){
       <button class="mon-remove" onclick="deleteKey('${esc(k.key)}')">Revoke</button>
     </div>`).join('') : `<div style="font-size:12px;color:var(--text-faint);padding:4px 0">No keys yet.</div>`;
   el.innerHTML=`
+    <div class="acct-sec">
+      <div class="acct-h">Recent changes</div>
+      ${changeTimeline(events)}
+    </div>
     <div class="acct-sec">
       <div class="acct-h">Alert delivery</div>
       <label class="acct-row"><span>Webhook URL <span class="acct-hint">(Slack / Discord / generic)</span></span>

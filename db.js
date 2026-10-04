@@ -66,6 +66,17 @@ db.exec(`
     last_used  INTEGER,
     FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
   );
+
+  -- Every change the monitor detected, so users can see a history, not just an email.
+  CREATE TABLE IF NOT EXISTS alert_events (
+    id      INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    domain  TEXT NOT NULL,
+    ts      INTEGER NOT NULL,
+    change  TEXT NOT NULL,
+    FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+  );
+  CREATE INDEX IF NOT EXISTS idx_alert_events_user ON alert_events(user_id, ts DESC, id DESC);
 `);
 
 // Lightweight migrations for columns added after initial release (ignore if present).
@@ -164,6 +175,20 @@ function allAlerts() {
 }
 function updateAlertState(id, stateObj) { _updAlertState.run(JSON.stringify(stateObj || {}), now(), id); }
 
+// ── Alert events (change history) ──
+const ALERT_EVENT_CAP = 500; // per user; oldest are dropped
+const _insEvent = db.prepare('INSERT INTO alert_events (user_id, domain, ts, change) VALUES (?, ?, ?, ?)');
+const _listEvents = db.prepare('SELECT domain, ts, change FROM alert_events WHERE user_id = ? ORDER BY ts DESC, id DESC LIMIT ?');
+const _trimEvents = db.prepare(`DELETE FROM alert_events WHERE user_id = ? AND id NOT IN
+  (SELECT id FROM alert_events WHERE user_id = ? ORDER BY ts DESC, id DESC LIMIT ${ALERT_EVENT_CAP})`);
+const addAlertEvents = db.transaction((userId, domain, changes) => {
+  if (!changes || !changes.length) return;
+  const ts = now();
+  for (const c of changes) _insEvent.run(userId, domain, ts, String(c));
+  _trimEvents.run(userId, userId);
+});
+function listAlertEvents(userId, limit = 100) { return _listEvents.all(userId, Math.min(limit, ALERT_EVENT_CAP)); }
+
 // ── User settings (webhook, digest) ──
 const _getUser = db.prepare('SELECT id, email, webhook_url, digest_enabled, last_digest FROM users WHERE id = ?');
 const _setWebhook = db.prepare('UPDATE users SET webhook_url = ? WHERE id = ?');
@@ -208,6 +233,7 @@ module.exports = {
   createSession, getSession, destroySession,
   addHistory, listHistory, clearHistory,
   addAlert, listAlerts, removeAlert, allAlerts, updateAlertState,
+  addAlertEvents, listAlertEvents, ALERT_EVENT_CAP,
   getUser, setWebhook, setDigest, markDigestSent, digestUsers,
   createApiKey, listApiKeys, deleteApiKey, apiKeyUser, apiKeyExists,
 };

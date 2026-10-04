@@ -4231,6 +4231,11 @@ app.delete('/api/history', requireAuth, (req, res) => {
 app.get('/api/alerts', requireAuth, (req, res) => {
   res.json({ alerts: store.listAlerts(req.user.id) });
 });
+// Change history for the signed-in user's watched domains, newest first.
+app.get('/api/alerts/events', requireAuth, (req, res) => {
+  const limit = Math.max(1, Math.min(Number(req.query.limit) || 100, 500));
+  res.json({ events: store.listAlertEvents(req.user.id, limit) });
+});
 app.post('/api/alerts', requireAuth, (req, res) => {
   const host = normalizeDomain(req.body?.domain || '');
   if (!host) return res.status(400).json({ error: 'Valid domain required' });
@@ -4405,6 +4410,7 @@ async function runAlertChecks() {
       const merged = Object.fromEntries(Object.keys(cur).map((k) => [k, cur[k] != null ? cur[k] : (prev[k] ?? null)]));
       store.updateAlertState(a.id, merged);
       if (changes.length) {
+        store.addAlertEvents(a.userId, a.domain, changes);
         if (a.emailEnabled) {
           try { await mailer.sendAlertEmail(a.email, a.domain, changes); }
           catch (e) { console.error('alert email failed:', e.message); }
