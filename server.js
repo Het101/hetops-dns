@@ -4536,6 +4536,9 @@ async function runDigests() {
 }
 setInterval(runDigests, 60 * 60 * 1000).unref();
 
+app.get('/legal', (req, res) => res.sendFile(path.join(__dirname, 'public', 'legal.html')));
+for (const page of ['terms', 'privacy', 'refunds']) app.get(`/${page}`, (req, res) => res.redirect(301, `/legal#${page}`));
+
 app.get('/docs', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'docs.html'));
 });

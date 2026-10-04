@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Terms, Privacy and Refunds · HetOps DNS</title>
+  <meta name="description" content="Terms of service, privacy policy and refund policy for HetOps DNS and Domain Watch.">
+  <link rel="icon" href="/favicon.ico" sizes="48x48">
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <meta name="theme-color" content="#0b0c0e">
+  <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+    html{color-scheme:dark;scroll-behavior:smooth}
+    body{background:#0b0c0e;color:#ececed;font:15px/1.65 Geist,system-ui,sans-serif;padding:0 0 80px}
+    a{color:#22b8d6}
+    .nav{border-bottom:1px solid #24282d}
+    .in{max-width:760px;margin:0 auto;padding:0 20px}
+    .nav .in{display:flex;align-items:center;justify-content:space-between;height:60px}
+    .wm{display:inline-flex;align-items:center;gap:9px;font-weight:600;font-size:17px;color:#ececed;text-decoration:none}
+    .wm svg{height:15px;width:auto}
+    .toc{display:flex;gap:18px;font-size:14px}.toc a{color:#a1a1aa;text-decoration:none}.toc a:hover{color:#ececed}
+    h1{font-size:30px;font-weight:600;letter-spacing:-.02em;margin:44px 0 6px}
+    .upd{color:#71717a;font-size:13px;margin-bottom:12px}
+    h2{font-size:20px;font-weight:600;margin:44px 0 12px;padding-top:12px;border-top:1px solid #24282d;scroll-margin-top:16px}
+    h3{font-size:15px;font-weight:600;margin:20px 0 6px}
+    p,li{color:#a1a1aa}p{margin-bottom:10px}ul{padding-left:20px;margin-bottom:10px}li{margin-bottom:4px}
+    b{color:#ececed;font-weight:500}
+    @media (max-width:560px){.toc{display:none}}
+  </style>
+</head>
+<body>
+<header class="nav"><div class="in">
+  <a class="wm" href="/"><svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" viewBox="10 22 80 56" fill="#10b981"><rect x="10" y="22" width="24" height="56" rx="5"/><rect x="66" y="22" width="24" height="56" rx="5"/><rect x="33" y="46" width="34" height="8"/><circle cx="50" cy="50" r="11"/></svg>HetOps DNS</a>
+  <nav class="toc"><a href="#terms">Terms</a><a href="#privacy">Privacy</a><a href="#refunds">Refunds</a></nav>
+</div></header>
+<main class="in">
+  <h1>Terms, privacy and refunds</h1>
+  <p class="upd">Last updated 4 October 2026</p>
+  <p>HetOps DNS (dns.hetops.dev), including Domain Watch, is run by Het Patel, an individual based in India ("we"). Questions about anything on this page: <a href="mailto:patel.x.het@gmail.com">patel.x.het@gmail.com</a>.</p>
+
+  <h2 id="terms">Terms of service</h2>
+  <h3>The service</h3>
+  <p>HetOps DNS checks the public DNS, TLS, email-authentication and web configuration of domains. Scans are free. Domain Watch plans (Free, Pro, Team) add monitoring, alerts and automatic DMARC report collection, as described on the <a href="/#pricing">pricing</a>.</p>
+  <h3>Acceptable use</h3>
+  <ul>
+    <li>Only add domains to monitoring, or point DMARC reports at us, for domains you own or are allowed to manage.</li>
+    <li>Don't use the service or API to attack, overload or probe systems you aren't authorised to test, and stay within the published rate limits.</li>
+    <li>We may suspend accounts that break these rules.</li>
+  </ul>
+  <h3>Paid plans</h3>
+  <p>Paid plans are monthly subscriptions sold through our reseller and merchant of record, <b>Lemon Squeezy</b>, which handles payment, invoices and sales tax. Subscriptions renew each month until cancelled. You can cancel any time from <b>Manage billing</b> in your account; you keep the plan until the end of the period you paid for, then the account returns to Free. Prices may change with at least 30 days' notice by email; changes apply from your next renewal.</p>
+  <h3>No warranty</h3>
+  <p>Results come from live public lookups and can be incomplete or wrong. The service is provided "as is", without warranties. Monitoring and alerts can be delayed or missed, so don't rely on them as your only safeguard. To the extent the law allows, our total liability is limited to what you paid us in the 12 months before the claim.</p>
+  <h3>Changes</h3>
+  <p>We may update these terms. Material changes are announced by email or on this page before they take effect.</p>
+
+  <h2 id="privacy">Privacy policy</h2>
+  <h3>What we collect</h3>
+  <ul>
+    <li><b>Scans:</b> the domain you scan. Scans without an account are not linked to you; recent scans are kept in your own browser.</li>
+    <li><b>Account:</b> your email address (for sign-in links and alerts), the domains you watch, your alert settings and change history.</li>
+    <li><b>DMARC reports:</b> if you use automatic collection, the aggregate reports mail providers send about your domain. These list sending IP addresses and message counts, not message content.</li>
+    <li><b>Billing:</b> your plan and subscription status. Card and payment details go to Lemon Squeezy and never reach us.</li>
+    <li><b>Usage:</b> cookieless, aggregate page analytics (self-hosted Umami) with no personal identifiers, plus standard server logs kept for security and debugging.</li>
+  </ul>
+  <h3>Cookies</h3>
+  <p>One cookie keeps you signed in. No advertising or tracking cookies.</p>
+  <h3>Who processes it</h3>
+  <p>Lemon Squeezy (payments), our email provider (sign-in and alert emails), Cloudflare (DNS and DMARC email routing) and Oracle Cloud (hosting). We don't sell your data or share it with anyone else, except where the law requires.</p>
+  <h3>Retention and your rights</h3>
+  <p>Account data is kept while your account exists. Change history and DMARC reports are capped (the most recent 500 alerts; DMARC reports up to 365 days). You can ask for a copy of your data, a correction, or deletion of your account and everything in it by emailing <a href="mailto:patel.x.het@gmail.com">patel.x.het@gmail.com</a>; we act within 30 days.</p>
+
+  <h2 id="refunds">Refund policy</h2>
+  <p>If a paid plan isn't right for you, email <a href="mailto:patel.x.het@gmail.com">patel.x.het@gmail.com</a> within <b>14 days</b> of your first payment for a full refund. After that, cancel any time to stop future renewals; the current period isn't refunded, and you keep the plan until it ends. If you were charged by mistake, or the service was down for a large part of your billing period, write to us and we'll make it right. Refunds are issued by Lemon Squeezy to your original payment method.</p>
+</main>
+</body>
+</html>
