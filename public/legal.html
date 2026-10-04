@@ -8,7 +8,7 @@
   <link rel="icon" href="/favicon.ico" sizes="48x48">
   <link rel="icon" href="/favicon.svg" type="image/svg+xml">
   <meta name="theme-color" content="#0b0c0e">
-  <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@500&display=swap" rel="stylesheet">
   <style>
     *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
     html{color-scheme:dark;scroll-behavior:smooth}
@@ -17,8 +17,9 @@
     .nav{border-bottom:1px solid #24282d}
     .in{max-width:760px;margin:0 auto;padding:0 20px}
     .nav .in{display:flex;align-items:center;justify-content:space-between;height:60px}
-    .wm{display:inline-flex;align-items:center;gap:9px;font-weight:600;font-size:17px;color:#ececed;text-decoration:none}
-    .wm svg{height:15px;width:auto}
+    .wm{display:inline-flex;align-items:center;gap:9px;font-weight:600;font-size:19px;letter-spacing:-.02em;color:#ececed;text-decoration:none}
+    .wm svg{height:1.1em;width:auto}
+    .wm .tool{font:500 11px 'Geist Mono',monospace;letter-spacing:.08em;color:#a1a1aa;padding:3px 7px;border:1px solid #33383e;border-radius:6px}
     .toc{display:flex;gap:18px;font-size:14px}.toc a{color:#a1a1aa;text-decoration:none}.toc a:hover{color:#ececed}
     h1{font-size:30px;font-weight:600;letter-spacing:-.02em;margin:44px 0 6px}
     .upd{color:#71717a;font-size:13px;margin-bottom:12px}
@@ -31,7 +32,7 @@
 </head>
 <body>
 <header class="nav"><div class="in">
-  <a class="wm" href="/"><svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" viewBox="10 22 80 56" fill="#10b981"><rect x="10" y="22" width="24" height="56" rx="5"/><rect x="66" y="22" width="24" height="56" rx="5"/><rect x="33" y="46" width="34" height="8"/><circle cx="50" cy="50" r="11"/></svg>HetOps DNS</a>
+  <a class="wm" href="/"><svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" viewBox="10 22 80 56" fill="#10b981"><rect x="10" y="22" width="24" height="56" rx="5"/><rect x="66" y="22" width="24" height="56" rx="5"/><rect x="33" y="46" width="34" height="8"/><circle cx="50" cy="50" r="11"/></svg>HetOps<span class="tool">DNS</span></a>
   <nav class="toc"><a href="#terms">Terms</a><a href="#privacy">Privacy</a><a href="#refunds">Refunds</a></nav>
 </div></header>
 <main class="in">
