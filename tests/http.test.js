@@ -73,7 +73,7 @@ test('unknown /api routes return JSON 404, not the SPA shell', async () => {
 });
 
 test('auth-required routes reject anonymous requests', async () => {
-  for (const path of ['/api/history', '/api/alerts', '/api/keys', '/api/settings']) {
+  for (const path of ['/api/history', '/api/alerts', '/api/alerts/events', '/api/keys', '/api/settings']) {
     const r = await fetch(`${base}${path}`);
     assert.equal(r.status, 401, `${path} should require auth`);
   }
