@@ -1091,6 +1091,35 @@
     }
 
 
+    /* ══ DECLUTTER + NEW BITS ═════════════════════════════════════ */
+    .domain-hdr { overflow: visible; }
+    .search-kbd { font: 12px var(--mono); color: var(--text-faint); border: 1px solid var(--border-hi); border-radius: 6px; padding: 2px 7px; margin-right: 4px; }
+    .search-row:focus-within .search-kbd { display: none; }
+    @media (max-width: 640px) { .search-kbd { display: none; } }
+    .tab-health { display: none !important; }            /* the count badge already says it */
+    .ov-top { padding-bottom: 16px; margin-bottom: 14px; }
+    .sender-ready { display: flex; align-items: center; gap: 14px; width: 100%; text-align: left; cursor: pointer;
+      padding: 12px 14px; margin-bottom: 14px; border-radius: 10px; border: 1px solid var(--border); background: rgba(255,255,255,.02);
+      color: var(--text); font: 500 13.5px var(--sans); transition: border-color .15s, background .15s; }
+    .sender-ready:hover { border-color: var(--accent-border); background: rgba(255,255,255,.04); }
+    .sender-ready.warn { border-color: rgba(245,158,11,.35); }
+    .sr-title { flex: 1; }
+    .sr-chips { display: flex; gap: 6px; }
+    .sr-chip { font: 500 12px var(--mono); padding: 2px 8px; border-radius: 999px; border: 1px solid var(--border); }
+    .sr-chip.ok { color: var(--ok); border-color: rgba(34,197,94,.3); }
+    .sr-chip.err { color: var(--err); border-color: rgba(240,82,82,.35); }
+    .sc-minor summary { color: var(--text-muted) !important; }
+    .more-menu { position: relative; }
+    .more-menu summary { list-style: none; }
+    .more-menu summary::-webkit-details-marker { display: none; }
+    .more-pop { position: absolute; left: 0; top: calc(100% + 6px); z-index: 30; min-width: 230px; padding: 6px;
+      background: var(--bg-card-hi); border: 1px solid var(--border-hi); border-radius: 12px; box-shadow: 0 20px 50px -15px rgba(0,0,0,.8); }
+    .more-pop button { display: flex; align-items: center; gap: 10px; width: 100%; padding: 9px 10px; border: 0; border-radius: 8px;
+      background: none; color: var(--text-dim); font: 13px var(--sans); cursor: pointer; text-align: left; }
+    .more-pop button:hover { background: rgba(255,255,255,.05); color: var(--text); }
+    .more-pop svg { width: 15px; height: 15px; }
+    @media (max-width: 640px) { .sender-ready { flex-wrap: wrap; } .sr-title { flex-basis: 100%; } .more-pop { left: auto; right: 0; } }
+
     /* ══ BRAND LOCKUP: connected-H symbol + "HetOps" ═════════════ */
     .logo-wordmark, .footer-wm, .wm, #pdfPrintHeader .pdf-wm {
       display: inline-flex; align-items: center; gap: 9px;
@@ -1204,6 +1233,7 @@
             <input id="searchInput" class="search-input" type="text"
               placeholder="example.com or https://example.com"
               autocomplete="off" spellcheck="false">
+            <kbd class="search-kbd" title="Press / anywhere to search">/</kbd>
             <button class="btn-analyze" onclick="runLookup()">Analyze →</button>
           </div>
         </div>
@@ -1263,21 +1293,21 @@
 
       </div>
           <div class="hdr-actions">
-          <button onclick="toggleWatch(this)" id="watchBtn" class="btn-export" title="Monitor this domain for changes">
+          <button onclick="toggleWatch(this)" id="watchBtn" class="btn-export" title="Get alerted when certificates, SPF, DMARC, MX or nameservers change">
             <i data-lucide="radar"></i>Watch
-          </button>
-          <button onclick="openCompare()" class="btn-export" title="Compare with another domain / view history">
-            <i data-lucide="git-compare"></i>Compare
           </button>
           <button onclick="shareLink(this)" class="btn-export" title="Copy a shareable link to this report">
             <i data-lucide="link"></i>Share
           </button>
-          <button onclick="exportPDF()" class="btn-export" title="Export as PDF / print">
-            <i data-lucide="file-text"></i>PDF
-          </button>
-          <button onclick="exportResults()" class="btn-export" title="Export all results as JSON">
-            <i data-lucide="download"></i>JSON
-          </button>
+          <details class="more-menu">
+            <summary class="btn-export"><i data-lucide="more-horizontal"></i>More</summary>
+            <div class="more-pop">
+              <button onclick="openCompare();this.closest('details').open=false"><i data-lucide="git-compare"></i>Compare domains</button>
+              <button onclick="exportPDF();this.closest('details').open=false"><i data-lucide="file-text"></i>Download PDF report</button>
+              <button onclick="exportResults();this.closest('details').open=false"><i data-lucide="download"></i>Export JSON</button>
+              <button onclick="copyBadge();this.closest('details').open=false"><i data-lucide="badge-check"></i>Copy README badge</button>
+            </div>
+          </details>
         </div>
     </div>
 
@@ -2069,8 +2099,7 @@ async function go(domain, signal, myToken){
   syncWatchBtn();
   const prevSnap = saveSnapshot(domain);
 
-  if(failed === 0) toast(`Analysis complete for ${domain}`, 'ok');
-  else if(failed >= tasks.length) toast(`Analysis failed: could not reach ${domain}`, 'err');
+  if(failed >= tasks.length) toast(`Analysis failed: could not reach ${domain}`, 'err');
   else toast(`Analysis complete · ${failed} check${failed!==1?'s':''} unavailable`, 'warn');
   notifyGradeChange(prevSnap, domain);
 
@@ -2638,10 +2667,8 @@ function score(){
   $('gradeLetter').style.color=gc;
   $('gradeLetter').style.textShadow=`0 0 40px ${gc}77`;
   const chips=[];
-  if(S.ssl&&!S.ssl.error) chips.push(`<span class="pill accent">${esc(S.ssl.grade?.letter||'TLS')}</span>`);
-  if(S.dns?.results?.NS?.length) chips.push(`<span class="pill">${esc(S.dns.results.NS[0]?.value||'')}</span>`);
-  if(S.geoip?.geo?.country_name) chips.push(`<span class="pill">${cFlag(S.geoip.geo.country_name)} ${esc(S.geoip.geo.country_name)}</span>`);
-  if(S.geoip?.geo?.org) chips.push(`<span class="pill">${esc(S.geoip.geo.org)}</span>`);
+  if(S.geoip?.geo?.org) chips.push(`<span class="pill" title="Who hosts the website">Hosted by ${esc(S.geoip.geo.org)}</span>`);
+  if(S.dns?.results?.NS?.length) chips.push(`<span class="pill" title="Who answers DNS for this domain">DNS: ${esc(nsProvider(S.dns.results.NS))}</span>`);
   $('domainChips').innerHTML=chips.join('');
   renderScorecard();   // progressively populate the scorecard as checks complete
   renderOverview();
@@ -2727,22 +2754,50 @@ function renderOverview(){
     </button>`;
   }).join('');
 
-  const gradeBox=h?`<div class="ov-grade" onclick="toggleScoreBreakdown()" role="button" tabindex="0"
-      onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleScoreBreakdown();}"
-      title="Click for the score breakdown">
-      <div class="ov-grade-letter" style="color:${h.gc}">${h.grade}</div>
-      <div class="ov-grade-pct">${h.pct}<span>/100</span></div>
-      <div class="ov-grade-hint">how is this calculated?</div>
-    </div>`:'';
 
   el.innerHTML=`<div class="card ov-card">
     <div class="ov-top">
-      ${gradeBox}
       <div class="ov-verdict ${vClass}">${esc(verdict)}</div>
     </div>
+    ${senderReadiness()}
     <div class="ov-cats">${cats}</div>
   </div>`;
 }
+
+// Gmail and Yahoo require SPF or DKIM, plus DMARC, for anyone sending in bulk (Feb 2024).
+// One glanceable line answers "will big inboxes accept my mail?".
+function senderReadiness(){
+  const e=S.emailsec; if(!e||e.error) return '';
+  const items=[
+    ['SPF', !!e.spf?.present],
+    ['DKIM', !!e.dkim?.present],
+    ['DMARC', !!e.dmarc?.present],
+  ];
+  const ok=items.every(([,v])=>v);
+  const chips=items.map(([k,v])=>`<span class="sr-chip ${v?'ok':'err'}">${v?'✓':'✕'} ${k}</span>`).join('');
+  return `<button class="sender-ready ${ok?'ok':'warn'}" onclick="deepLinkTab('emailsec')">
+    <span class="sr-title">${ok?'Ready for Gmail and Yahoo bulk-sender rules':'Not ready for Gmail and Yahoo bulk-sender rules'}</span>
+    <span class="sr-chips">${chips}</span>
+    <span class="ov-cat-arrow">→</span>
+  </button>`;
+}
+// "dns1.p08.nsone.net" -> "nsone.net"; mixed providers -> "nsone.net + awsdns".
+function nsProvider(ns){
+  const base=(h)=>{const p=String(h.value||h).replace(/\.$/,'').split('.'); return p.slice(-2).join('.').replace(/^awsdns-\d+\..*/,'awsdns');};
+  const names=[...new Set(ns.map(n=>{const v=String(n.value||n); return /awsdns/.test(v)?'AWS Route 53':base(v);}))];
+  return names.slice(0,2).join(' + ')+(names.length>2?' +'+(names.length-2):'');
+}
+function renderRecentChips(){
+  const box=document.querySelector('.examples'); if(!box) return;
+  const recent=getHistory().slice(0,4);
+  if(!recent.length) return;
+  box.innerHTML=`<span class="examples-lbl">Recent</span>`+recent.map(d=>`<button class="example-chip" onclick="quickSearch('${escAttr(d)}')">${esc(d)}</button>`).join('');
+}
+document.addEventListener('keydown',e=>{
+  if(e.key!=='/'||e.ctrlKey||e.metaKey) return;
+  const t=document.activeElement; if(t&&/INPUT|TEXTAREA|SELECT/.test(t.tagName)) return;
+  e.preventDefault(); const i=$('searchInput'); i.focus(); i.select();
+});
 
 // ── Security Scorecard ─────────────────────────────────────────
 // Aggregate the most important signals across all checks into prioritized,
@@ -3076,7 +3131,9 @@ function renderScorecard(){
     }).join('')}
   </div>`:'';
 
-  const issueList=issues.length>3?`<div class="sc-list">${issues.slice(3).map(scItem).join('')}</div>`:'';
+  const rest=issues.slice(3), major=rest.filter(x=>x.sev!=='low'), minor=rest.filter(x=>x.sev==='low');
+  const issueList=(major.length?`<div class="sc-list">${major.map(scItem).join('')}</div>`:'')
+    +(minor.length?`<details class="sc-passed sc-minor"><summary>${minor.length} minor suggestion${minor.length!==1?'s':''}</summary><div class="sc-list">${minor.map(scItem).join('')}</div></details>`:'');
   const passedHtml=passed.length?`<details class="sc-passed">
     <summary>${passed.length} check${passed.length!==1?'s':''} passed</summary>
     <div class="sc-list">${passed.map(scItem).join('')}</div>
@@ -3085,7 +3142,6 @@ function renderScorecard(){
   const allClear=!issues.length && !analyzing
     ? `<div class="sc-allclear">All clear: no issues found across ${findings.length} evaluated checks.</div>`:'';
 
-  const gradeTxt=h?`${h.grade} · ${h.pct}/100`:'-';
   el.innerHTML=`
     <div class="sc-head">
       <div class="sc-title"><i data-lucide="clipboard-check"></i>Security Scorecard</div>
@@ -3101,12 +3157,7 @@ function renderScorecard(){
     ${allClear}
     ${top3Html}
     ${issueList}
-    ${passedHtml}
-    <div class="sc-badge-row">
-      <span class="sc-badge-lbl">Grade: <strong style="color:${h?h.gc:'var(--text)'}">${gradeTxt}</strong></span>
-      <button class="sc-view" onclick="copyBadge()" title="Copy a Markdown status badge for your README">Copy badge</button>
-      <button class="sc-view" onclick="shareLink()">Copy report link</button>
-    </div>`;
+    ${passedHtml}`;
   el.style.display='';
   if(window.lucide) lucide.createIcons({ root: el });
 }
@@ -4751,6 +4802,7 @@ function downloadFile(content,filename,mimeType){
 
 // ── Initialize icons ───────────────────────────────────────────
 lucide.createIcons();
+renderRecentChips();
 </script>
 </body>
 </html>
