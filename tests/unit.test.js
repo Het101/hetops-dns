@@ -146,3 +146,27 @@ test('calculateSslLabsGrade boundaries', () => {
   assert.equal(calculateSslLabsGrade(40).letter, 'E');
   assert.equal(calculateSslLabsGrade(0).letter, 'F');
 });
+
+test('diffStatus watches email authentication and delegation', () => {
+  const spfOld = 'v=spf1 include:_spf.google.com -all';
+  const spfNew = 'v=spf1 include:_spf.google.com include:mailgun.org -all';
+
+  assert.match(diffStatus({ spf: spfOld }, { spf: '' })[0], /SPF record removed/);
+  assert.match(diffStatus({ spf: '' }, { spf: spfOld })[0], /SPF record added/);
+  assert.match(diffStatus({ spf: spfOld }, { spf: spfNew })[0], /SPF record changed/);
+
+  assert.match(diffStatus({ dmarcPolicy: 'reject' }, { dmarcPolicy: 'none' })[0], /DMARC policy weakened: reject → none/);
+  assert.match(diffStatus({ dmarcPolicy: 'none' }, { dmarcPolicy: 'quarantine' })[0], /DMARC policy tightened: none → quarantine/);
+  assert.match(diffStatus({ dmarcPolicy: 'reject' }, { dmarcPolicy: '' })[0], /DMARC record removed/);
+
+  assert.match(diffStatus({ mx: ['a.mx.example'] }, { mx: ['b.mx.example'] })[0], /MX records changed/);
+  assert.match(diffStatus({ ns: ['ns1.old.net'] }, { ns: ['ns1.new.net'] })[0], /Nameservers changed/);
+
+  // Unknown (null) on either side never alerts: a failed lookup is not a change.
+  assert.deepEqual(diffStatus({ spf: spfOld }, { spf: null }), []);
+  assert.deepEqual(diffStatus({ mx: ['a.mx.example'] }, { mx: null }), []);
+  // Fields missing from an older baseline never alert on upgrade.
+  assert.deepEqual(diffStatus({ sslDays: 60 }, { sslDays: 60, spf: spfOld, dmarcPolicy: 'reject', mx: ['a'], ns: ['b'] }), []);
+  // Order of MX/NS answers is not a change.
+  assert.deepEqual(diffStatus({ mx: ['a', 'b'] }, { mx: ['b', 'a'] }), []);
+});

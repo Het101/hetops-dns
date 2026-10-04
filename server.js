@@ -4305,23 +4305,34 @@ function parseWhoisExpiryDays(whois) {
   return Math.floor((t - Date.now()) / 86400000);
 }
 async function checkDomainStatus(domain) {
-  const [ssl, bl, dnsRes, whois] = await Promise.all([
+  const [ssl, bl, dnsRes, whois, mail] = await Promise.all([
     runCheckSafe('ssl', domain),
     runCheckSafe('blacklist-check', domain),
     runCheckSafe('dns-lookup', domain),
     runCheckSafe('whois', domain),
+    runCheckSafe('email-security', domain),
   ]);
   // null (not []) when the lookup failed, so a transient failure is distinguishable
   // from a genuine "no records" result and never triggers a false "changed" alert.
   const aRecords = (!dnsRes.error && dnsRes.results?.A) ? dnsRes.results.A.map(r => r.value).sort() : null;
+  const records = (type) => (dnsRes.error || dnsRes.errors?.[type]) ? null
+    : (dnsRes.results?.[type] || []).map((r) => String(r.value).toLowerCase().replace(/\.$/, '')).sort();
+  const mailOk = mail && !mail.error;
   return {
     sslDays: (!ssl.error) ? (ssl.certificate?.daysRemaining ?? null) : null,
     grade: (!ssl.error) ? (ssl.grade?.letter || null) : null,
     blacklisted: (!bl.error && bl.results) ? bl.results.some(r => r.listed) : null,
     whoisDays: parseWhoisExpiryDays(whois),
     aRecords,
+    // '' means "checked, none published"; null means "could not check".
+    spf: mailOk ? (mail.spf?.present ? mail.spf.record : '') : null,
+    dmarcPolicy: mailOk ? (mail.dmarc?.present ? (mail.dmarc.policy || 'none') : '') : null,
+    mx: records('MX'),
+    ns: records('NS'),
   };
 }
+const DMARC_STRENGTH = { none: 0, quarantine: 1, reject: 2 };
+const sameList = (a, b) => [...a].sort().join(',') === [...b].sort().join(',');
 function diffStatus(prev, cur) {
   const ch = [];
   if (!prev || !Object.keys(prev).length) return ch;
@@ -4338,6 +4349,24 @@ function diffStatus(prev, cur) {
   if (prev.aRecords && cur.aRecords && prev.aRecords.join(',') !== cur.aRecords.join(',') && (prev.aRecords.length || cur.aRecords.length))
     ch.push(`A record changed: ${prev.aRecords.join(', ') || '∅'} → ${cur.aRecords.join(', ') || '∅'}`);
   if (prev.grade && cur.grade && prev.grade !== cur.grade) ch.push(`TLS grade changed ${prev.grade} → ${cur.grade}`);
+
+  // Email authentication: the changes that silently break delivery or allow spoofing.
+  if (prev.spf != null && cur.spf != null && prev.spf !== cur.spf) {
+    if (!cur.spf) ch.push('SPF record removed: receivers can no longer verify mail from this domain');
+    else if (!prev.spf) ch.push(`SPF record added: ${cur.spf}`);
+    else ch.push(`SPF record changed: ${prev.spf} → ${cur.spf}`);
+  }
+  if (prev.dmarcPolicy != null && cur.dmarcPolicy != null && prev.dmarcPolicy !== cur.dmarcPolicy) {
+    if (!cur.dmarcPolicy) ch.push(`DMARC record removed (was p=${prev.dmarcPolicy}): spoofed mail is no longer blocked`);
+    else if (!prev.dmarcPolicy) ch.push(`DMARC record added with p=${cur.dmarcPolicy}`);
+    else if ((DMARC_STRENGTH[cur.dmarcPolicy] ?? 0) < (DMARC_STRENGTH[prev.dmarcPolicy] ?? 0))
+      ch.push(`DMARC policy weakened: ${prev.dmarcPolicy} → ${cur.dmarcPolicy}`);
+    else ch.push(`DMARC policy tightened: ${prev.dmarcPolicy} → ${cur.dmarcPolicy}`);
+  }
+  if (prev.mx && cur.mx && !sameList(prev.mx, cur.mx))
+    ch.push(`MX records changed: ${prev.mx.join(', ') || '∅'} → ${cur.mx.join(', ') || '∅'}`);
+  if (prev.ns && cur.ns && !sameList(prev.ns, cur.ns))
+    ch.push(`Nameservers changed: ${prev.ns.join(', ') || '∅'} → ${cur.ns.join(', ') || '∅'}. If you did not do this, check your registrar now.`);
   return ch;
 }
 // Deliver an alert to a Slack/Discord/generic webhook (SSRF-guarded).
@@ -4373,13 +4402,7 @@ async function runAlertChecks() {
       // Preserve last-known-good values for any field that failed this round, so a
       // transient resolver failure can't wipe the baseline or flap future alerts.
       const prev = a.last || {};
-      const merged = {
-        sslDays: cur.sslDays != null ? cur.sslDays : (prev.sslDays ?? null),
-        grade: cur.grade != null ? cur.grade : (prev.grade ?? null),
-        blacklisted: cur.blacklisted != null ? cur.blacklisted : (prev.blacklisted ?? null),
-        whoisDays: cur.whoisDays != null ? cur.whoisDays : (prev.whoisDays ?? null),
-        aRecords: cur.aRecords != null ? cur.aRecords : (prev.aRecords ?? null),
-      };
+      const merged = Object.fromEntries(Object.keys(cur).map((k) => [k, cur[k] != null ? cur[k] : (prev[k] ?? null)]));
       store.updateAlertState(a.id, merged);
       if (changes.length) {
         if (a.emailEnabled) {
@@ -4468,6 +4491,7 @@ module.exports = {
   cacheKeyFor,
   parseWhoisExpiryDays,
   diffStatus,
+  checkDomainStatus,
   calculateSslLabsGrade,
   computeDomainGrade,
   runCheckCached,
