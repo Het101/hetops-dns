@@ -75,6 +75,11 @@ test('webhook: bad signature rejected; a valid subscription upgrades the user', 
   await hook(sub(u.id, 222, 'active'));
   assert.equal(billing.planFor(store.getUser(u.id)).key, 'team', 'plan change follows the variant');
 
+  await hook(sub(u.id, 999, 'active', { variant_name: 'Pro' }));
+  assert.equal(billing.planFor(store.getUser(u.id)).key, 'pro', 'unknown id falls back to the variant name');
+  await hook(sub(u.id, 998, 'active', { variant_name: 'Team' }));
+  assert.equal(billing.planFor(store.getUser(u.id)).key, 'team');
+
   await hook(sub(u.id, 222, 'expired'));
   assert.equal(billing.planFor(store.getUser(u.id)).key, 'free');
 });
