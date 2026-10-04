@@ -1,7 +1,7 @@
 // HetOps DNS service worker — network-first so content is always fresh online,
 // with a cached app shell for offline. API calls always go to the network.
-const CACHE = 'hetops-dns-v2';
-const SHELL = ['/', '/icon.svg', '/manifest.webmanifest', '/shared/health-score.js'];
+const CACHE = 'hetops-dns-v3';
+const SHELL = ['/', '/favicon.svg', '/site.webmanifest', '/shared/health-score.js'];
 
 self.addEventListener('install', (e) => {
   e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting()));
