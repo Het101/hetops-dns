@@ -3876,8 +3876,9 @@ function renderHeaders(data){
   }).join('');
   
   // "Add X" advice is covered by the Fix it card; keep only advice it does not cover.
-  const covered=window.HetOpsFix?HetOpsFix.buildHeaderFix(checks).add.map(h=>h.name.toLowerCase()):[];
-  analysis.recommendations=(analysis.recommendations||[]).filter(r=>!(/^(add|consider adding)/i.test(r)&&covered.some(n=>r.toLowerCase().includes(n))));
+  const covered=window.HetOpsFix?HetOpsFix.buildHeaderFix(checks).add
+    .flatMap(h=>h.name==='Strict-Transport-Security'?['strict-transport-security','hsts']:[h.name.toLowerCase()]):[];
+  analysis.recommendations=(analysis.recommendations||[]).filter(r=>!(/^(add|consider adding)\b/i.test(r)&&covered.some(n=>r.toLowerCase().includes(n))));
   const recs=analysis.recommendations&&analysis.recommendations.length>0?
     `<div class="card" style="padding:20px;margin-top:14px;border-color:rgba(245,158,11,.2);background:rgba(245,158,11,.06)">
       <div style="font-size:13px;font-weight:700;color:var(--warn);margin-bottom:12px">Recommendations</div>
