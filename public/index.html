@@ -1795,8 +1795,8 @@
 <script>
 // ── Analytics (self-hosted Umami, cookieless). Off until both values are set. ──
 // Events carry no domain names: only what was used (scan, plans, checkout).
-const UMAMI_SRC = '';
-const UMAMI_WEBSITE_ID = '';
+const UMAMI_SRC = 'https://analytics.hetops.dev/script.js';
+const UMAMI_WEBSITE_ID = 'fb75f958-eba4-49de-abd8-ee2ef5f70c11';
 if (UMAMI_SRC && UMAMI_WEBSITE_ID) {
   const s = document.createElement('script');
   s.defer = true; s.src = UMAMI_SRC; s.dataset.websiteId = UMAMI_WEBSITE_ID; s.dataset.domains = 'dns.hetops.dev';
