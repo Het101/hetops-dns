@@ -5,7 +5,7 @@
 // and (2) trust its signed webhooks to tell us which plan an account is on.
 //
 // Env: LS_CHECKOUT_PRO / LS_CHECKOUT_TEAM  - the variants' "Share" checkout URLs
-//      LS_VARIANT_PRO / LS_VARIANT_TEAM    - the variant ids (to map webhooks to plans)
+//      LS_VARIANT_PRO / LS_VARIANT_TEAM    - optional variant ids; otherwise the variant name ("Pro", "Team") decides
 //      LS_WEBHOOK_SECRET                   - the webhook signing secret
 //      PLAN_OVERRIDES                      - "email:plan,email:plan" (e.g. the owner on team)
 const crypto = require('crypto');
@@ -46,11 +46,13 @@ function verifySignature(rawBody, signature) {
   return want.length === got.length && crypto.timingSafeEqual(want, got);
 }
 
-function planForVariant(variantId) {
+// Variant ids differ between test and live mode, so the variant name is the default key.
+function planForVariant(variantId, variantName) {
   const v = String(variantId);
   if (v && v === String(process.env.LS_VARIANT_TEAM)) return 'team';
   if (v && v === String(process.env.LS_VARIANT_PRO)) return 'pro';
-  return null;
+  const name = String(variantName || '').trim().toLowerCase();
+  return name === 'pro' || name === 'team' ? name : null;
 }
 
 // Webhook payload -> the billing fields to store, or null if it is not ours to act on.
@@ -58,7 +60,7 @@ function billingUpdate(payload) {
   const userId = Number(payload?.meta?.custom_data?.user_id);
   const a = payload?.data?.attributes;
   if (!userId || !a || !/^subscription_/.test(payload?.meta?.event_name || '')) return null;
-  const plan = planForVariant(a.variant_id);
+  const plan = planForVariant(a.variant_id, a.variant_name);
   if (!plan) return null;
   const ts = (d) => (d ? Date.parse(d) || null : null);
   return {
