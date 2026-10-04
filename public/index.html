@@ -24,6 +24,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
   <script src="https://cdn.jsdelivr.net/npm/lucide@0.469.0/dist/umd/lucide.min.js"></script>
   <script src="/shared/health-score.js"></script>
+  <script src="/shared/fix-generator.js"></script>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -1090,6 +1091,30 @@
       .hero-main > *, .hero-aside { animation: none !important; }
     }
 
+
+    /* ══ FIX GENERATOR ════════════════════════════════════════════ */
+    .fix-card { margin-top: 14px; padding: 22px 24px; }
+    .fix-done { display: flex; align-items: center; gap: 10px; color: var(--ok); font-size: 13.5px; }
+    .fix-done svg { width: 18px; height: 18px; }
+    .fix-title { display: flex; align-items: center; gap: 8px; font-size: 15px; font-weight: 600; }
+    .fix-title svg { width: 17px; height: 17px; color: var(--brand); }
+    .fix-sub { font-size: 13px; color: var(--text-muted); margin-top: 4px; }
+    .fix-list { list-style: none; padding: 0; margin: 16px 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 8px; }
+    .fix-list li { padding: 10px 12px; border-radius: 10px; border: 1px solid var(--border); background: rgba(255,255,255,.02); display: flex; flex-direction: column; gap: 3px; }
+    .fix-list b { font: 600 12.5px var(--mono); color: var(--text); }
+    .fix-list li.rm b { color: var(--warn); }
+    .fix-list span { font-size: 12.5px; color: var(--text-muted); line-height: 1.45; }
+    .fix-tabs { display: flex; flex-wrap: wrap; gap: 4px; padding: 4px; border-radius: 10px; border: 1px solid var(--border); background: rgba(0,0,0,.15); width: fit-content; max-width: 100%; }
+    .fix-tab { background: none; border: 0; border-radius: 7px; padding: 6px 12px; color: var(--text-muted); font: 500 13px var(--sans); cursor: pointer; }
+    .fix-tab:hover { color: var(--text); }
+    .fix-tab.on { background: var(--brand-subtle); color: var(--text); box-shadow: inset 0 0 0 1px var(--brand-border); }
+    .fix-where { font-size: 12px; color: var(--text-faint); margin: 12px 0 6px; }
+    .fix-code { position: relative; }
+    .fix-code pre { margin: 0; padding: 16px 18px; border-radius: 10px; border: 1px solid var(--border); background: #0a0b0d;
+      font: 12.5px/1.65 var(--mono); color: #d4d4d8; overflow-x: auto; white-space: pre; }
+    .fix-copy { position: absolute; top: 10px; right: 10px; display: inline-flex; align-items: center; gap: 6px; background: var(--bg-card-hi); }
+    .fix-copy svg { width: 13px; height: 13px; }
+    .fix-copy.done { color: var(--ok); border-color: rgba(34,197,94,.4); }
 
     /* ══ CHANGE HISTORY ═══════════════════════════════════════════ */
     .tl-list { max-height: 320px; overflow-y: auto; padding-right: 4px; }
@@ -3825,13 +3850,14 @@ if('serviceWorker' in navigator){
 
 // ── Render: Security Headers ───────────────────────────────────
 function renderHeaders(data){
+  setTimeout(()=>{ if(FIX_STATE&&$('fixCode')) setFixPlatform(FIX_STATE.platform); },0);
   if(data.error){
     $('headersContent').innerHTML=`<div class="card"><div class="err-box">${esc(data.error)}</div></div>`; return;
   }
   
   const analysis=data.analysis||{};
   const checks=analysis.checks||{};
-  const score=analysis.score||0;
+  const score=Math.round(analysis.score||0);
   const scoreColor=score>=80?'var(--ok)':score>=60?'#a3e635':score>=40?'var(--warn)':'var(--err)';
   const ratingLabel=analysis.rating==='excellent'?'Excellent':analysis.rating==='good'?'Good':analysis.rating==='fair'?'Fair':'Poor';
   
@@ -3849,6 +3875,10 @@ function renderHeaders(data){
     </div>`;
   }).join('');
   
+  // "Add X" advice is covered by the Fix it card; keep only advice it does not cover.
+  const covered=window.HetOpsFix?HetOpsFix.buildHeaderFix(checks).add
+    .flatMap(h=>h.name==='Strict-Transport-Security'?['strict-transport-security','hsts']:[h.name.toLowerCase()]):[];
+  analysis.recommendations=(analysis.recommendations||[]).filter(r=>!(/^(add|consider adding)\b/i.test(r)&&covered.some(n=>r.toLowerCase().includes(n))));
   const recs=analysis.recommendations&&analysis.recommendations.length>0?
     `<div class="card" style="padding:20px;margin-top:14px;border-color:rgba(245,158,11,.2);background:rgba(245,158,11,.06)">
       <div style="font-size:13px;font-weight:700;color:var(--warn);margin-bottom:12px">Recommendations</div>
@@ -3868,7 +3898,47 @@ function renderHeaders(data){
       <div style="margin-top:20px">${httpBadge} <span class="pill">Status ${data.statusCode||'-'}</span></div>
     </div>
     <div class="card" style="overflow:hidden"><div class="sec-label">Security Headers</div>${checksHtml}</div>
-  </div>${recs}`;
+  </div>${fixCard(checks)}${recs}`;
+  if(window.lucide) lucide.createIcons({ root: $('headersContent') });
+}
+
+// ── "Fix it": copy-paste header config for the user's platform ──
+let FIX_STATE=null;
+function fixCard(checks){
+  if(!window.HetOpsFix) return '';
+  const fix=HetOpsFix.buildHeaderFix(checks);
+  if(fix.empty) return `<div class="card fix-card fix-done"><i data-lucide="check-circle"></i>Every recommended security header is in place. Nothing to fix.</div>`;
+  let platform='nginx'; try{ platform=localStorage.getItem('hetops_fix_platform')||'nginx'; }catch(e){}
+  if(!HetOpsFix.PLATFORMS.some(p=>p.id===platform)) platform='nginx';
+  FIX_STATE={fix, platform};
+  const changes=fix.add.map(h=>`<li><b>${esc(h.name)}</b><span>${esc(h.why)}</span></li>`).join('')
+    +fix.remove.map(n=>`<li class="rm"><b>Remove ${esc(n)}</b><span>${n==='Public-Key-Pins'?'Deprecated, and can lock visitors out if a key changes.':'Advertises your software and version to attackers.'}</span></li>`).join('');
+  const tabs=HetOpsFix.PLATFORMS.map(p=>`<button class="fix-tab${p.id===platform?' on':''}" data-p="${p.id}" onclick="setFixPlatform('${p.id}')">${esc(p.label)}</button>`).join('');
+  return `<div class="card fix-card">
+    <div class="fix-head">
+      <div><div class="fix-title"><i data-lucide="wrench"></i>Fix it</div>
+      <div class="fix-sub">${fix.add.length} header${fix.add.length!==1?'s':''} to add${fix.remove.length?`, ${fix.remove.length} to remove`:''}. Pick where your site runs and paste this in.</div></div>
+    </div>
+    <ul class="fix-list">${changes}</ul>
+    <div class="fix-tabs" role="tablist">${tabs}</div>
+    <div class="fix-where" id="fixWhere"></div>
+    <div class="fix-code"><pre id="fixCode"></pre><button class="sc-view fix-copy" onclick="copyFix(this)"><i data-lucide="copy"></i>Copy</button></div>
+  </div>`;
+}
+function setFixPlatform(id){
+  if(!FIX_STATE) return;
+  FIX_STATE.platform=id;
+  try{ localStorage.setItem('hetops_fix_platform',id); }catch(e){}
+  document.querySelectorAll('.fix-tab').forEach(b=>b.classList.toggle('on',b.dataset.p===id));
+  const p=HetOpsFix.PLATFORMS.find(x=>x.id===id);
+  $('fixWhere').textContent='Paste into: '+p.file;
+  $('fixCode').textContent=FIX_STATE.fix.snippets[id];
+}
+function copyFix(btn){
+  if(!FIX_STATE) return;
+  navigator.clipboard.writeText(FIX_STATE.fix.snippets[FIX_STATE.platform])
+    .then(()=>{ toast('Config copied','ok',1600); btn.classList.add('done'); setTimeout(()=>btn.classList.remove('done'),1200); })
+    .catch(()=>toast('Could not copy','err'));
 }
 
 // ── Render: DNSSEC ─────────────────────────────────────────────
