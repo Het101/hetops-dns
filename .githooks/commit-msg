@@ -1,0 +1,51 @@
+#!/bin/sh
+# HetOps DNS commit-msg. Keeps the history readable and attribution honest.
+set -e
+
+msg_file="$1"
+subject=$(head -1 "$msg_file")
+
+# GitHub appends " (#123)" to a squash-merge subject. The author never typed
+# those characters and cannot shorten them, so measuring them is measuring the
+# wrong thing — and it means a subject that passed this hook locally fails the
+# same check in CI once it has been squashed. Judge what the author wrote.
+authored=$(printf '%s' "$subject" | sed -E 's/ \(#[0-9]+\)$//')
+
+# Merge and revert commits are generated; leave them alone.
+case "$subject" in
+  "Merge "*|"Revert "*|"fixup!"*|"squash!"*) exit 0 ;;
+esac
+
+# Comment-only / empty message: let git handle the abort.
+[ -z "$(grep -v '^#' "$msg_file" | tr -d '[:space:]')" ] && exit 0
+
+if grep -qiE '^[[:space:]]*co-authored-by:.*(anthropic|claude)' "$msg_file"; then
+  echo "" >&2
+  echo "commit-msg: remove the assistant co-author trailer." >&2
+  echo "  This repo does not carry Co-Authored-By lines for tooling." >&2
+  echo "" >&2
+  exit 1
+fi
+
+if ! echo "$subject" \
+  | grep -qE '^(feat|fix|docs|test|perf|refactor|build|ci|chore|revert)(\([a-z0-9._-]+\))?!?: .+'; then
+  echo "" >&2
+  echo "commit-msg: the subject must be a Conventional Commit." >&2
+  echo "  got:      $subject" >&2
+  echo "  expected: <type>(<scope>): <summary>" >&2
+  echo "  types:    feat fix docs test perf refactor build ci chore revert" >&2
+  echo "  example:  fix(dmarc): accept reports with an empty policy_published block" >&2
+  echo "" >&2
+  exit 1
+fi
+
+if [ "${#authored}" -gt 72 ]; then
+  echo "" >&2
+  echo "commit-msg: subject is ${#authored} characters; keep it under 72." >&2
+  echo "  Put the detail in the body, which has no limit." >&2
+  echo "  Note that squashing a pull request appends \" (#123)\" to this line." >&2
+  echo "" >&2
+  exit 1
+fi
+
+exit 0
