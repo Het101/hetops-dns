@@ -1,0 +1,43 @@
+name: scorecard
+
+# OpenSSF Scorecard: a standardised read of supply-chain posture — branch
+# protection, token permissions, pinned dependencies, dangerous workflow
+# patterns, and a dozen more. Unlike a vendor score it says exactly which check
+# failed and why, so a low number is actionable rather than just discouraging.
+on:
+  branch_protection_rule:
+  push:
+    branches: [main]
+  schedule:
+    # Weekly, so posture drift is caught without waiting for a commit.
+    - cron: "41 5 * * 2"
+  workflow_dispatch:
+
+permissions: read-all
+
+jobs:
+  analysis:
+    runs-on: ubuntu-latest
+    permissions:
+      # Upload the result so findings land in the Security tab beside CodeQL.
+      security-events: write
+      id-token: write
+      contents: read
+      actions: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      - uses: ossf/scorecard-action@2d1146689b8cda280b9bc96326124645441f03bc # v2.4.4
+        with:
+          results_file: results.sarif
+          results_format: sarif
+          # Lets Scorecard read branch protection and webhook settings, which
+          # the default token cannot. Without it those checks report unknown.
+          repo_token: ${{ secrets.SCORECARD_TOKEN || github.token }}
+          publish_results: true
+
+      - uses: github/codeql-action/upload-sarif@2892aa5e19bbd11bc0cff5427e3b750a04d9e3c2 # v4
+        with:
+          sarif_file: results.sarif

@@ -1,0 +1,64 @@
+name: Bug report
+description: Something on dns.hetops.dev did not do what it said it would.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **The domain you scanned is fine to share** — scan results are public DNS data.
+        **Never paste** an API key (`hk_...`), a webhook URL, a sign-in link, or the
+        contents of a DMARC report if its source IPs are sensitive. A screenshot with
+        those cropped out is usually enough.
+
+        A check that ran but gave the wrong answer has its own form: **Wrong or misleading result**.
+        Security problems do not belong here — see [SECURITY.md](../blob/main/SECURITY.md).
+  - type: dropdown
+    id: area
+    attributes:
+      label: Which part?
+      options:
+        - Domain scan
+        - Monitoring / alerts
+        - DMARC report collection
+        - DMARC viewer
+        - Billing / plans
+        - API
+        - Emails (sign-in, alerts, digest)
+        - Sign-in / account
+        - Not sure
+    validations: { required: true }
+  - type: input
+    id: domain
+    attributes:
+      label: Domain involved, if any
+      placeholder: example.com
+  - type: textarea
+    id: steps
+    attributes:
+      label: What did you do?
+      description: The page, the button, or the API request (method and path, no key).
+    validations: { required: true }
+  - type: textarea
+    id: expected
+    attributes:
+      label: What did you expect to happen?
+    validations: { required: true }
+  - type: textarea
+    id: actual
+    attributes:
+      label: What happened instead?
+      description: The error message or response, redacted.
+      render: text
+    validations: { required: true }
+  - type: input
+    id: browser
+    attributes:
+      label: Browser and device
+      placeholder: Firefox 131 on Android, or curl for API calls
+  - type: checkboxes
+    id: hygiene
+    attributes:
+      label: Before submitting
+      options:
+        - label: This contains no API key, webhook URL, sign-in link or sensitive DMARC data
+          required: true

@@ -1,0 +1,34 @@
+name: dependency-review
+
+# Blocks a pull request that introduces a vulnerable or badly-licensed
+# dependency, before it reaches main. Dependabot reports what is already in the
+# tree and npm audit gates the build; neither stops a bad dependency arriving in
+# the first place, which is the cheapest moment to refuse one.
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      # To leave the dependency summary as a PR comment.
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294 # v5.0.0
+        with:
+          # Matches the npm audit gate, so the two cannot disagree.
+          fail-on-severity: high
+          # This repo carries no licence (no LICENSE file, no `license` field in
+          # package.json), so the code is all rights reserved and runs as a
+          # hosted service. Copyleft is still refused: AGPL is triggered by
+          # exactly that kind of network use, and GPL would close off ever
+          # licensing or shipping this code on our own terms.
+          deny-licenses: GPL-2.0, GPL-3.0, AGPL-3.0, LGPL-3.0
+          comment-summary-in-pr: on-failure

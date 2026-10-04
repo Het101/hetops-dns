@@ -1,0 +1,40 @@
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    # Wait before proposing a brand-new version. Most malicious releases are
+    # yanked within a couple of days of publication, and a week is long enough
+    # that a compromised package is usually gone before it reaches a PR here.
+    # Longer for majors, which need reading anyway.
+    cooldown:
+      default-days: 7
+      semver-major-days: 14
+    open-pull-requests-limit: 5
+    groups:
+      dev:
+        dependency-type: development
+    commit-message:
+      prefix: "build"
+      prefix-development: "build"
+      include: scope
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    cooldown:
+      default-days: 7
+    commit-message:
+      prefix: "ci"
+  # The base image is what Coolify actually runs. A Node major bump here should
+  # land together with the matrix in ci.yml and engines.node in package.json.
+  - package-ecosystem: docker
+    directory: /
+    schedule:
+      interval: monthly
+    cooldown:
+      default-days: 7
+      semver-major-days: 14
+    commit-message:
+      prefix: "build"

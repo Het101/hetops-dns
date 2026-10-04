@@ -1,0 +1,46 @@
+name: Wrong or misleading result
+description: A check gave a result that is wrong, or right but likely to be misread.
+labels: [wrong result]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **The most useful report this site can get.** A scanner that is confidently wrong
+        is worse than no scanner: people fix things that were fine and leave alone things
+        that were broken.
+
+        "Technically correct but I read it the wrong way" counts too — say what you
+        concluded and why.
+  - type: input
+    id: domain
+    attributes:
+      label: Domain
+      description: Scan results are public DNS data, so this is safe to share.
+      placeholder: example.com
+    validations: { required: true }
+  - type: input
+    id: check
+    attributes:
+      label: Which check?
+      placeholder: SPF, DMARC, SSL grade, DNSSEC, MTA-STS, blacklist, security headers...
+    validations: { required: true }
+  - type: textarea
+    id: said
+    attributes:
+      label: What did it say?
+      description: The verdict, grade or message, as shown.
+    validations: { required: true }
+  - type: textarea
+    id: truth
+    attributes:
+      label: What is actually true?
+    validations: { required: true }
+  - type: textarea
+    id: evidence
+    attributes:
+      label: How do you know?
+      description: |
+        `dig` / `nslookup` output, another tool's result, or the RFC section. Results
+        can change with DNS caching, so say roughly when you scanned.
+      render: text
+    validations: { required: true }

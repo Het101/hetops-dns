@@ -1,0 +1,113 @@
+#!/bin/sh
+# HetOps DNS pre-commit. Wired up once with `npm run hooks`
+# (git config core.hooksPath .githooks). `git commit --no-verify` skips it, but
+# CI runs the same checks, so skipping only moves the failure later.
+set -e
+
+fail() {
+  echo ""
+  echo "pre-commit: $1" >&2
+  echo ""
+  exit 1
+}
+
+staged=$(git diff --cached --name-only --diff-filter=ACM)
+[ -z "$staged" ] && exit 0
+
+# --- 1. Secrets must never enter the history ---------------------------------
+# This repo is public and deploys straight from main. A commit is the last
+# cheap place to catch a credential; after a push it has to be rotated.
+
+# .env and .env.<anything>, except the templates that are meant to be committed.
+if echo "$staged" | grep -E '(^|/)\.env($|\.)' | grep -qvE '\.env\.(example|sample|template|dist)$'; then
+  fail "refusing to commit a .env file. Use .env.example with placeholders."
+fi
+
+added=$(git diff --cached --unified=0 -- $(echo "$staged" | tr '\n' ' ') 2>/dev/null | grep '^+' || true)
+
+# Match on the SHAPE of a real secret, not on an allowlist of placeholders. A
+# check that cries wolf at documentation is a check people learn to bypass.
+# The Lemon Squeezy and DMARC ingest secrets are free-form strings with no
+# shape to match; those stay out by living in .env, which .gitignore covers.
+if echo "$added" | grep -qE -e '-----BEGIN [A-Z ]*PRIVATE KEY-----'; then
+  fail "a private key looks like it is being committed."
+fi
+if echo "$added" | grep -qE 'AKIA[0-9A-Z]{16}'; then
+  fail "an AWS access key id looks like it is being committed."
+fi
+if echo "$added" | grep -qE 'hooks\.slack\.com/services/T[A-Z0-9]+/'; then
+  fail "a Slack webhook URL looks like it is being committed. Anyone holding it can post to that channel."
+fi
+# smtp://user:password@host or postgres://... A placeholder such as :pass@ is
+# short; anything ten characters or longer is treated as the real thing.
+if echo "$added" | grep -qE '(smtps?|postgres|postgresql)://[^:/@[:space:]]+:[A-Za-z0-9!#%^&*_+=~.-]{10,}@'; then
+  fail "an SMTP or database URL with a live password looks like it is being committed."
+fi
+if echo "$added" | grep -qE 'npm_[A-Za-z0-9]{36}'; then
+  fail "an npm token looks like it is being committed. Put it in your user ~/.npmrc, never here."
+fi
+if echo "$added" | grep -qE '_authToken[[:space:]]*=[[:space:]]*[^$][^[:space:]]{8,}'; then
+  fail "an _authToken value looks like it is being committed. Reference it as \${NPM_TOKEN} instead."
+fi
+
+# --- 2. Commits have to be signed ---------------------------------------------
+# A pre-commit hook cannot inspect a signature that does not exist yet, so it
+# checks that signing is configured; pre-push checks the commits themselves,
+# including the ones rebases produce.
+
+if [ "$(git config --get commit.gpgsign)" != "true" ]; then
+  fail "commit signing is off, and main requires signed commits.
+    git config commit.gpgsign true
+    git config rebase.gpgsign true
+  No key yet? SSH signing is the shortest route:
+    git config gpg.format ssh
+    git config user.signingkey ~/.ssh/id_ed25519.pub
+  then add that public key to https://github.com/settings/keys a second time,
+  as a signing key."
+fi
+
+if [ -z "$(git config --get user.signingkey)" ] && [ "$(git config --get gpg.format)" != "ssh" ]; then
+  fail "commit.gpgsign is on but user.signingkey is unset, so the commit will fail to sign."
+fi
+
+# A rebase that is not told to sign strips the signatures off everything it
+# rewrites, which is how a signed branch becomes an unsigned one.
+if [ "$(git config --get rebase.gpgsign)" != "true" ]; then
+  echo "pre-commit: note — rebase.gpgsign is not set, so a rebase will unsign these commits." >&2
+  echo "            git config rebase.gpgsign true" >&2
+fi
+
+# --- 3. The code has to actually work ----------------------------------------
+# main deploys on merge, so a red test here is a broken site later.
+if echo "$staged" | grep -qE '\.(js|json)$'; then
+  echo "pre-commit: lint"
+  npm run --silent lint
+  echo "pre-commit: tests"
+  npm run --silent test
+fi
+
+# --- 4. A broken workflow file removes its own checks ------------------------
+# A YAML error in .github/workflows does not fail CI. It fails the *run*, before
+# any job starts, so the required checks never report and the pull request sits
+# there looking fine. This repo has no YAML parser in its dependencies and is
+# not getting one for a hook, so it borrows PyYAML when it is installed.
+if echo "$staged" | grep -qE '^\.github/.*\.ya?ml$'; then
+  py=""
+  for c in python3 python; do
+    if "$c" -c 'import yaml' >/dev/null 2>&1; then py="$c"; break; fi
+  done
+  if [ -z "$py" ]; then
+    echo "pre-commit: note — no PyYAML found, workflow YAML not parsed. CI's zizmor step will catch it." >&2
+  else
+    echo "pre-commit: workflow yaml"
+    for f in $(echo "$staged" | grep -E '^\.github/.*\.ya?ml$'); do
+      [ -f "$f" ] || continue
+      "$py" -c 'import sys, yaml; yaml.safe_load(open(sys.argv[1], encoding="utf-8"))' "$f" || {
+        echo "pre-commit: $f is not valid YAML. CI would not run at all." >&2
+        exit 1
+      }
+    done
+  fi
+fi
+
+exit 0

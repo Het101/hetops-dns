@@ -1,0 +1,202 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# Least privilege by default. A job that needs more asks for it explicitly.
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        # 20 is what the Dockerfile ships and Coolify deploys, so it is the one
+        # that has to pass. 22 is the next LTS: testing it now means the
+        # Dockerfile bump is a one-line change rather than a surprise. Move both
+        # together when the base image moves.
+        node: [20, 22]
+    steps:
+      # First step on purpose, so it sees every step after it. Watches what
+      # this job talks to over the network: everything else in this repo checks
+      # code before it runs, and this is the only thing that notices a
+      # dependency misbehaving while it runs — the shape every recent npm
+      # compromise has taken. Audit mode records destinations without blocking,
+      # which is what an allowlist for block mode has to be built from.
+      - uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        with:
+          egress-policy: audit
+
+      # Actions are pinned to commit SHAs, not tags. A tag is mutable: whoever
+      # controls the action's repo can repoint v7 at new code, and it runs here
+      # with our token. The trailing comment is the human-readable version.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+      - run: node -v && npm -v
+      - run: npm ci
+      - run: npm run lint
+      - run: npm test
+
+      # The tests import server.js as a module, which never calls listen() and
+      # never serves public/. A deploy that fails to boot — a bad require, a
+      # schema migration that throws against a fresh database, a missing
+      # static file — passes every test and still takes the site down. This
+      # boots the real entry point the way the container does, against a
+      # throwaway database, and asks it for a page and for data.
+      - name: boot the server and hit it
+        run: |
+          set -e
+          port=$(node -e "const s=require('net').createServer().listen(0,()=>{console.log(s.address().port);s.close()})")
+          log="$RUNNER_TEMP/server.log"
+          PORT="$port" DB_PATH="$RUNNER_TEMP/smoke.db" node server.js > "$log" 2>&1 &
+          pid=$!
+          trap 'kill "$pid" 2>/dev/null || true' EXIT
+          base="http://127.0.0.1:$port"
+          for _ in $(seq 1 30); do
+            curl -s -o /dev/null "$base/" && break
+            sleep 1
+          done
+          code=$(curl -s -o /dev/null -w '%{http_code}' "$base/")
+          if [ "$code" != "200" ]; then
+            echo "::error::GET / returned $code"
+            cat "$log"
+            exit 1
+          fi
+          # Free, Pro and Team. Billing is the one endpoint the pricing page
+          # cannot render without, and it reads config at request time.
+          curl -fsS "$base/api/billing/plans" | node -e '
+            const j = JSON.parse(require("fs").readFileSync(0, "utf8"));
+            if (!Array.isArray(j.plans) || j.plans.length !== 3) {
+              console.error("::error::expected 3 plans, got " + JSON.stringify(j));
+              process.exit(1);
+            }
+            console.log("plans: " + j.plans.map((p) => p.key).join(", "));
+          '
+          echo "server booted and answered on port $port"
+
+  hygiene:
+    runs-on: ubuntu-latest
+    steps:
+      # First step on purpose, so it sees every step after it. Watches what
+      # this job talks to over the network: everything else in this repo checks
+      # code before it runs, and this is the only thing that notices a
+      # dependency misbehaving while it runs — the shape every recent npm
+      # compromise has taken. Audit mode records destinations without blocking,
+      # which is what an allowlist for block mode has to be built from.
+      - uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+
+      # Static analysis for the workflows themselves. CI is the most privileged
+      # code in the repo and the part nothing else reviews. zizmor catches
+      # template injection, tokens left in .git/config, cache poisoning and
+      # unpinned actions. Pinned, for the same reason everything else here is.
+      - name: audit the workflows
+        run: pipx run zizmor==1.30.1 --persona=regular .github/
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+      # The pre-commit hook can be bypassed with --no-verify. This cannot.
+      # Patterns match the SHAPE of a real secret, so the placeholders in
+      # .env.example and the patterns in this file do not trip it. The Lemon
+      # Squeezy and DMARC ingest secrets are free-form strings with no shape to
+      # match; keeping those out is .gitignore's job (.env) and review's.
+      - name: scan the tree for committed secrets
+        run: |
+          set -e
+          found=0
+          check() {
+            # -e, because the private-key pattern starts with dashes and would
+            # otherwise be read as an option.
+            if git grep -nE -e "$1" -- . ':!package-lock.json'; then
+              echo "::error::$2"
+              found=1
+            fi
+          }
+          check '-----BEGIN [A-Z ]*PRIVATE KEY-----' "a private key is present in the tree"
+          check 'AKIA[0-9A-Z]{16}' "an AWS access key id is present in the tree"
+          check 'hooks\.slack\.com/services/T[A-Z0-9]+/' "a Slack webhook URL is present in the tree"
+          # A placeholder such as :pass@ or :password@ is short; anything ten
+          # characters or longer is treated as the real thing.
+          check '(smtps?|postgres|postgresql)://[^:/@[:space:]]+:[A-Za-z0-9!#%^&*_+=~.-]{10,}@' "an SMTP or database URL with a live password is present in the tree"
+          check 'npm_[A-Za-z0-9]{36}' "an npm token is present in the tree"
+          check '_authToken[[:space:]]*=[[:space:]]*[^$][^[:space:]]{8,}' "an _authToken value is present in the tree"
+          # .env and .env.<anything>, except the templates meant to be committed.
+          if git ls-files | grep -E '(^|/)\.env($|\.)' | grep -vE '\.env\.(example|sample|template|dist)$'; then
+            echo "::error::a .env file is tracked. Use .env.example with placeholders."
+            found=1
+          fi
+          [ "$found" -eq 0 ] || exit 1
+          echo "no secrets found in the tree"
+
+      - name: commit messages are conventional and unattributed
+        # Through env, never interpolated into the script body. A ${{ }} inside
+        # run is substituted before the shell sees it, so anything attacker-
+        # controlled becomes shell code. It is a SHA here, but the habit is what
+        # keeps the next one from being a branch name.
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          set -e
+          base="$BASE_SHA"
+          if [ -z "$base" ]; then base="HEAD~1"; fi
+          for sha in $(git log --format='%H' "$base..HEAD"); do
+            git log -1 --format='%B' "$sha" > "$RUNNER_TEMP/msg"
+            .githooks/commit-msg "$RUNNER_TEMP/msg"
+          done
+          echo "commit messages ok"
+
+      - name: commits must be signed
+        # main rejects unsigned commits, but the rejection arrives at merge time
+        # with no explanation of the cause. The usual cause is a rebase that was
+        # not told to sign — including GitHub's own "Update branch" button, which
+        # rebases server-side and cannot sign as you.
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.number }}
+        run: |
+          set -e
+          if [ -z "$PR" ]; then
+            echo "not a pull request; nothing to check"
+            exit 0
+          fi
+          unsigned=$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR/commits" \
+            --jq '.[] | select(.commit.verification.verified == false) | .sha[0:8] + "  " + (.commit.message | split("\n")[0])')
+          if [ -n "$unsigned" ]; then
+            echo "::error::unsigned commits in this pull request"
+            echo "$unsigned"
+            echo ""
+            echo "Sign them with:"
+            echo "  git rebase --exec 'git commit --amend --no-edit -S' origin/main"
+            echo "  git push --force-with-lease"
+            echo ""
+            echo "Do not use GitHub's 'Update branch' button: it rebases on the"
+            echo "server and strips signatures. Rebase locally instead."
+            exit 1
+          fi
+          echo "all commits signed"
+
+      # Production installs with --production, so a dev-only advisory never
+      # ships — but this audits everything anyway. A dev dependency runs on the
+      # laptop that holds the deploy credentials, and an exemption here is the
+      # kind that quietly grows.
+      - name: dependency audit
+        run: npm audit --audit-level=high

@@ -1,0 +1,70 @@
+#!/bin/sh
+# HetOps DNS pre-push. `main` requires signed commits, so an unsigned one is
+# rejected at merge time — after CI has run and after a reviewer has looked.
+# This says so before the push instead.
+#
+# It also catches the commits a pre-commit hook structurally cannot: anything
+# produced by a rebase, cherry-pick, amend or squash, none of which run
+# pre-commit. `git config rebase.gpgsign true` is what keeps rebases signed;
+# without it a rebase silently strips every signature it rewrites.
+set -e
+
+ZERO=0000000000000000000000000000000000000000
+fail=0
+
+while read -r _local_ref local_sha _remote_ref remote_sha; do
+  # Deleting a remote ref: nothing to inspect.
+  [ "$local_sha" = "$ZERO" ] && continue
+
+  if [ "$remote_sha" = "$ZERO" ]; then
+    # New branch. Check only what this branch adds, not all of history.
+    commits=$(git rev-list "$local_sha" --not --remotes=origin 2>/dev/null || true)
+  else
+    commits=$(git rev-list "$remote_sha..$local_sha" 2>/dev/null || true)
+  fi
+
+  [ -z "$commits" ] && continue
+
+  for sha in $commits; do
+    # G good, U good but the key is untrusted locally, X/Y/R expired-ish but
+    # signed. N is unsigned and B is a bad signature; both are rejected.
+    status=$(git log -1 --format='%G?' "$sha")
+    case "$status" in
+      N|B)
+        if [ "$fail" -eq 0 ]; then
+          echo "" >&2
+          echo "pre-push: these commits are not signed, and main requires signatures:" >&2
+          echo "" >&2
+        fi
+        echo "  $status $(git log -1 --format='%h %s' "$sha")" >&2
+        fail=1
+        ;;
+    esac
+  done
+done
+
+if [ "$fail" -ne 0 ]; then
+  cat >&2 <<'MSG'
+
+To sign what you already have:
+
+  git rebase --exec 'git commit --amend --no-edit -S' origin/main
+
+To stop it happening again:
+
+  git config commit.gpgsign true
+  git config rebase.gpgsign true
+
+If you have no signing key yet, SSH signing is the shortest route:
+
+  git config gpg.format ssh
+  git config user.signingkey ~/.ssh/id_ed25519.pub
+
+then add that same public key to GitHub a second time, as a *signing* key:
+https://github.com/settings/keys
+
+MSG
+  exit 1
+fi
+
+exit 0

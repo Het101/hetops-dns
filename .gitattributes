@@ -1,1 +1,15 @@
+# LF everywhere, so shell hooks keep a working shebang when checked out on
+# Windows (core.autocrlf would otherwise give them CRLF and break them).
+* text=auto eol=lf
+
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.webp binary
+*.woff binary
+*.woff2 binary
+*.gz binary
+*.zip binary
 tests/fixtures/** binary
