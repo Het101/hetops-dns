@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Security vulnerability
+    url: https://github.com/Het101/hetops-dns/security/advisories/new
+    about: Report privately. Never in a public issue — see SECURITY.md.
+  - name: Question or idea
+    url: https://github.com/Het101/hetops-dns/discussions
+    about: For anything that is not a bug report, a wrong result or a concrete feature request.
+  - name: Billing question
+    url: mailto:patel.x.het@gmail.com
+    about: Payments, invoices, plan changes and refunds. Email rather than an issue, so account details stay private.

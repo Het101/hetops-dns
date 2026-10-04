@@ -1,0 +1,19 @@
+name: Feature request
+description: Something HetOps DNS should be able to do and cannot.
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What can you not do today?
+      description: The situation you are stuck in, not the feature you have in mind.
+    validations: { required: true }
+  - type: textarea
+    id: workaround
+    attributes:
+      label: What are you doing instead?
+      description: Another tool, a script, dig by hand, giving up — all useful to know.
+  - type: textarea
+    id: proposal
+    attributes:
+      label: What would you like it to do?
