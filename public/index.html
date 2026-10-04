@@ -1110,6 +1110,9 @@
     .plan-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding: 12px 14px; margin-top: 16px;
       border-radius: 10px; border: 1px solid var(--border); background: rgba(255,255,255,.02); font-size: 13px; color: var(--text-dim); }
     .plan-row .plan-cta { width: auto; height: 36px; }
+    .plan-tag { margin-left: 8px; padding: 1px 7px; border-radius: 999px; border: 1px solid var(--brand-border); background: var(--brand-subtle);
+      color: var(--brand); font: 500 11px var(--mono); letter-spacing: .04em; cursor: pointer; vertical-align: middle; }
+    .plan-tag:hover { background: var(--brand-border); }
     @media (max-width: 760px) { .plans { grid-template-columns: 1fr; } }
 
     /* ══ DMARC REPORTS ════════════════════════════════════════════ */
@@ -1705,7 +1708,7 @@
     </div>
     <div id="monList" class="mon-list"></div>
     <div id="monAccount" style="display:none"></div>
-    <div class="mon-note" id="monNote"><i data-lucide="info"></i>Checks run automatically every 15 minutes while this tab is open. <b>Sign in</b> to receive email alerts even when the tab is closed.</div>
+    <div class="mon-note" id="monNote"><i data-lucide="info"></i><span>Checks run automatically every 15 minutes while this tab is open. <b>Sign in</b> to receive email alerts even when the tab is closed.</span></div>
   </div>
 </div>
 
@@ -3712,6 +3715,9 @@ async function renderAccountPanel(){
       <button class="mon-remove" onclick="deleteKey('${esc(k.key)}')">Revoke</button>
     </div>`).join('') : `<div style="font-size:12px;color:var(--text-faint);padding:4px 0">No keys yet.</div>`;
   const plan=currentUser.planName||'Free';
+  // Mark features the current plan doesn't include; using them opens the plans dialog.
+  const lim=currentUser.limits||{};
+  const tag=(ok,name)=>ok?'':`<button type="button" class="plan-tag" onclick="closeMonitor();openPlans()" title="Part of ${name}">${name}</button>`;
   const planRow=currentUser.plan&&currentUser.plan!=='free'
     ? `<div class="plan-row"><span>Plan: <b>${esc(plan)}</b>${currentUser.planStatus==='cancelled'&&currentUser.planEndsAt?` (until ${new Date(currentUser.planEndsAt).toLocaleDateString()})`:''}</span>${currentUser.billingPortal?`<a class="hero-tool-btn" href="${escAttr(currentUser.billingPortal)}" target="_blank" rel="noopener"><i data-lucide="credit-card"></i>Manage billing</a>`:''}</div>`
     : `<div class="plan-row"><span>Plan: <b>Free</b> · 1 watched domain</span><button class="btn-analyze plan-cta" onclick="closeMonitor();openPlans()">See plans</button></div>`;
@@ -3723,14 +3729,14 @@ async function renderAccountPanel(){
     </div>
     <div class="acct-sec">
       <div class="acct-h">Alert delivery</div>
-      <label class="acct-row"><span>Webhook URL <span class="acct-hint">(Slack / Discord / generic)</span></span>
+      <label class="acct-row"><span>Webhook URL <span class="acct-hint">(Slack / Discord / generic)</span>${tag(lim.webhooks,'Pro')}</span>
         <input id="acctWebhook" class="cmp-select" type="url" placeholder="https://hooks.slack.com/…" value="${escAttr(settings.webhookUrl||'')}" style="cursor:text;font-family:'Geist Mono', monospace;font-size:12px">
       </label>
-      <label class="acct-toggle"><input type="checkbox" id="acctDigest" ${settings.digestEnabled?'checked':''}> Email me a weekly summary of monitored domains</label>
+      <label class="acct-toggle"><input type="checkbox" id="acctDigest" ${settings.digestEnabled?'checked':''}> Email me a weekly summary of monitored domains${tag(lim.digest,'Team')}</label>
       <button class="hero-tool-btn" onclick="saveAccountSettings()" style="margin-top:10px"><i data-lucide="save"></i>Save settings</button>
     </div>
     <div class="acct-sec">
-      <div class="acct-h">Developer API <a href="/docs" target="_blank" class="acct-docs">Docs ↗</a></div>
+      <div class="acct-h"><span>Developer API${tag(lim.api,'Team')}</span> <a href="/docs" target="_blank" class="acct-docs">Docs ↗</a></div>
       <div class="acct-keys">${keyRows}</div>
       <button class="hero-tool-btn" onclick="createKey()" style="margin-top:10px"><i data-lucide="plus"></i>Create API key</button>
     </div>`;
@@ -3970,7 +3976,7 @@ function renderAccount(){
   }
   // Reflect auth state in the monitoring note.
   const note=$('monNote');
-  if(note) note.innerHTML=`<i data-lucide="info"></i>Checks run automatically every 15 minutes while this tab is open. ${currentUser?'Email alerts are sent to <b>'+esc(currentUser.email)+'</b> even when the tab is closed.':'<b>Sign in</b> to receive email alerts even when the tab is closed.'}`;
+  if(note) note.innerHTML=`<i data-lucide="info"></i><span>Checks run automatically every 15 minutes while this tab is open. ${currentUser?'Email alerts are sent to <b>'+esc(currentUser.email)+'</b> even when the tab is closed.':'<b>Sign in</b> to receive email alerts even when the tab is closed.'}</span>`;
   if(note && window.lucide) lucide.createIcons({ root: note });
 }
 
