@@ -7,7 +7,7 @@
     "start": "node server.js",
     "dev": "node --watch server.js",
     "lint": "node -c server.js",
-    "test": "node --test \"tests/*.test.js\"",
+    "test": "node --test tests/*.test.js",
     "hooks": "git config core.hooksPath .githooks"
   },
   "dependencies": {
