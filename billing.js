@@ -48,9 +48,9 @@ function verifySignature(rawBody, signature) {
 
 // Variant ids differ between test and live mode, so the variant name is the default key.
 function planForVariant(variantId, variantName) {
-  const v = String(variantId);
-  if (v && v === String(process.env.LS_VARIANT_TEAM)) return 'team';
-  if (v && v === String(process.env.LS_VARIANT_PRO)) return 'pro';
+  const v = variantId == null ? '' : String(variantId);
+  if (v && v === process.env.LS_VARIANT_TEAM) return 'team';
+  if (v && v === process.env.LS_VARIANT_PRO) return 'pro';
   const name = String(variantName || '').trim().toLowerCase();
   return name === 'pro' || name === 'team' ? name : null;
 }
@@ -59,7 +59,9 @@ function planForVariant(variantId, variantName) {
 function billingUpdate(payload) {
   const userId = Number(payload?.meta?.custom_data?.user_id);
   const a = payload?.data?.attributes;
-  if (!userId || !a || !/^subscription_/.test(payload?.meta?.event_name || '')) return null;
+  // Only subscription objects carry the plan. subscription_payment_* events send an invoice
+  // (no variant, status "paid") and must not touch the plan.
+  if (!userId || !a || payload?.data?.type !== 'subscriptions') return null;
   const plan = planForVariant(a.variant_id, a.variant_name);
   if (!plan) return null;
   const ts = (d) => (d ? Date.parse(d) || null : null);
