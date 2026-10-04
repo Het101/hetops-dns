@@ -263,11 +263,11 @@ app.use(cookieParser());
 // Security headers (defense-in-depth; applies to every response).
 const CSP = [
   "default-src 'self'",
-  "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net",
+  "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://analytics.hetops.dev",
   "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
   "font-src https://fonts.gstatic.com data:",
   "img-src 'self' data: https:",
-  "connect-src 'self'",
+  "connect-src 'self' https://analytics.hetops.dev",
   "base-uri 'self'",
   "object-src 'none'",
   "frame-ancestors 'none'",
