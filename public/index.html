@@ -5,21 +5,23 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>HetOps DNS: domain, TLS and email security scanner</title>
   <meta name="description" content="Comprehensive domain intelligence: DNS records, WHOIS, SSL analysis, global propagation, security auditing.">
-  <link rel="icon" href="/icon.svg" type="image/svg+xml">
-  <link rel="mask-icon" href="/icon.svg" color="#10b981">
-  <link rel="apple-touch-icon" href="/icon.svg">
+  <link rel="icon" href="/favicon.ico" sizes="48x48">
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png">
   <meta name="theme-color" content="#0b0c0e">
-  <link rel="manifest" href="/manifest.webmanifest">
+  <link rel="manifest" href="/site.webmanifest">
   <script type="application/ld+json">
   {"@context":"https://schema.org","@type":"WebApplication","name":"HetOps DNS Intelligence","url":"https://dns.hetops.dev/","applicationCategory":"SecurityApplication","operatingSystem":"Any","browserRequirements":"Requires JavaScript","offers":{"@type":"Offer","price":"0","priceCurrency":"USD"},"description":"Comprehensive domain intelligence: DNS records, WHOIS, SSL/TLS analysis, security headers, DNSSEC, global propagation, GeoIP, port scanning, email authentication and more: in one report."}
   </script>
   <meta property="og:title" content="HetOps DNS: domain, TLS and email security scanner">
   <meta property="og:description" content="DNS records, WHOIS, SSL/TLS, security auditing, propagation, GeoIP and more in one report.">
   <meta property="og:type" content="website">
-  <meta property="og:image" content="/logo.png">
+  <meta property="og:image" content="https://dns.hetops.dev/og.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
   <meta name="twitter:card" content="summary_large_image">
   <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&family=Plus+Jakarta+Sans:ital,wght@1,900&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
   <script src="https://cdn.jsdelivr.net/npm/lucide@0.469.0/dist/umd/lucide.min.js"></script>
   <script src="/shared/health-score.js"></script>
   <style>
@@ -29,7 +31,7 @@
     :root {
       --sans: 'Geist', ui-sans-serif, system-ui, sans-serif;
       --mono: 'Geist Mono', ui-monospace, monospace;
-      --wordmark: 'Plus Jakarta Sans', var(--sans);
+      --wordmark: var(--sans);
 
       --brand:        #10b981;
       --brand-dim:    #059669;
@@ -1088,6 +1090,16 @@
       .hero-main > *, .hero-aside { animation: none !important; }
     }
 
+
+    /* ══ BRAND LOCKUP: connected-H symbol + "HetOps" ═════════════ */
+    .logo-wordmark, .footer-wm, .wm, #pdfPrintHeader .pdf-wm {
+      display: inline-flex; align-items: center; gap: 9px;
+      font-family: var(--sans, 'Geist', sans-serif) !important; font-style: normal !important;
+      font-weight: 700 !important; letter-spacing: -0.035em !important;
+    }
+    .brand-mark { height: 1.1em; width: auto; flex-shrink: 0; }
+    .brand-name { color: var(--text); }
+
     /* ══ PRINT / PDF EXPORT (dark branded report) ═══════════════ */
     @media print {
       @page { margin: 12mm; }
@@ -1139,7 +1151,7 @@
   <div class="container">
     <div class="navbar-inner">
       <a href="/" class="logo" aria-label="HetOps DNS home">
-        <span class="logo-wordmark"><span class="het">HET</span><span class="ops">OPS_</span></span>
+        <span class="logo-wordmark"><svg class="brand-mark" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" viewBox="10 22 80 56" fill="#10b981"><rect x="10" y="22" width="24" height="56" rx="5"/><rect x="66" y="22" width="24" height="56" rx="5"/><rect x="33" y="46.0" width="34" height="8"/><circle cx="50" cy="50" r="11"/></svg><span class="brand-name">HetOps</span></span>
         <span class="logo-tool">DNS</span>
       </a>
       <div class="nav-right">
@@ -1163,7 +1175,7 @@
 <!-- ── Mobile Navigation ──────────────────────────────────── -->
 <div class="mobile-nav-overlay" id="mobileNavOverlay" role="dialog" aria-modal="true" aria-label="Navigation">
   <div class="mobile-nav-header">
-    <div class="logo-wordmark"><span class="het">HET</span><span class="ops">OPS_</span></div>
+    <div class="logo-wordmark"><svg class="brand-mark" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" viewBox="10 22 80 56" fill="#10b981"><rect x="10" y="22" width="24" height="56" rx="5"/><rect x="66" y="22" width="24" height="56" rx="5"/><rect x="33" y="46.0" width="34" height="8"/><circle cx="50" cy="50" r="11"/></svg><span class="brand-name">HetOps</span></div>
     <button class="mobile-nav-close" aria-label="Close navigation" onclick="closeMobileNav()">
       <i data-lucide="x"></i>
     </button>
@@ -1601,7 +1613,7 @@
 <footer class="footer">
   <div class="footer-inner">
     <div>
-      <div class="footer-wm"><span class="het">HET</span><span class="ops">OPS_</span></div>
+      <div class="footer-wm"><svg class="brand-mark" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" viewBox="10 22 80 56" fill="#10b981"><rect x="10" y="22" width="24" height="56" rx="5"/><rect x="66" y="22" width="24" height="56" rx="5"/><rect x="33" y="46.0" width="34" height="8"/><circle cx="50" cy="50" r="11"/></svg><span class="brand-name">HetOps</span></div>
       <p class="footer-sub">DNS Intelligence is part of the HetOps toolset for keeping domains, certificates and mail healthy.</p>
     </div>
     <nav class="footer-links" aria-label="Footer">
@@ -4364,7 +4376,7 @@ function exportPDF(){
   }
   const h=computeHealth();
   const now=new Date();
-  hdr.innerHTML=`<div class="pdf-wm"><span class="het">HET</span><span class="ops">OPS_</span> DNS Report</div>
+  hdr.innerHTML=`<div class="pdf-wm"><svg class="brand-mark" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" viewBox="10 22 80 56" fill="#10b981"><rect x="10" y="22" width="24" height="56" rx="5"/><rect x="66" y="22" width="24" height="56" rx="5"/><rect x="33" y="46.0" width="34" height="8"/><circle cx="50" cy="50" r="11"/></svg><span class="brand-name">HetOps</span> DNS Report</div>
     <div class="pdf-meta">${esc(domain)}${h?` · Grade ${esc(h.grade)} (${h.pct}/100)`:''}<br>Generated ${now.toLocaleString()}</div>`;
   toast('Opening print dialog: choose "Save as PDF"','info',2600);
   const cleanup=()=>{ if(hdr) hdr.remove(); window.removeEventListener('afterprint',cleanup); };

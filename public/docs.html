@@ -5,9 +5,11 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>HetOps DNS — API Documentation</title>
   <meta name="description" content="HetOps DNS public API: programmatic domain intelligence — DNS, WHOIS, SSL/TLS, security, propagation, GeoIP and more.">
-  <link rel="icon" href="/icon.svg" type="image/svg+xml">
+  <link rel="icon" href="/favicon.ico" sizes="48x48">
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png">
   <meta name="theme-color" content="#050514">
-  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@1,900&family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
   <style>
     *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
     :root{--brand:#10b981;--accent:#06b6d4;--bg:#050514;--card:rgba(12,12,30,.7);--border:rgba(255,255,255,.08);--text:#f1f5f9;--dim:rgba(241,245,249,.62);--faint:rgba(241,245,249,.4)}
@@ -16,7 +18,7 @@
     a{color:var(--brand);text-decoration:none}a:hover{text-decoration:underline}
     .nav{position:sticky;top:0;background:rgba(6,6,18,.85);backdrop-filter:blur(18px);border-bottom:1px solid var(--border);z-index:10}
     .nav-in{max-width:880px;margin:0 auto;padding:16px 24px;display:flex;align-items:center;justify-content:space-between}
-    .wm{font-family:'Plus Jakarta Sans',sans-serif;font-weight:900;font-style:italic;font-size:19px;letter-spacing:-.5px}
+    .wm{display:inline-flex;align-items:center;gap:9px;font-weight:700;font-size:19px;letter-spacing:-.035em;text-decoration:none;color:var(--text)}.wm .brand-mark{height:1.1em;width:auto}
     .wm .het{color:var(--text)}.wm .ops{color:var(--brand)}
     .wrap{max-width:880px;margin:0 auto;padding:40px 24px}
     h1{font-size:34px;font-weight:700;letter-spacing:-1px;margin-bottom:8px}
@@ -45,7 +47,7 @@
 </head>
 <body>
   <nav class="nav"><div class="nav-in">
-    <a href="/" class="wm"><span class="het">HET</span><span class="ops">OPS_</span></a>
+    <a href="/" class="wm"><svg class="brand-mark" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" viewBox="10 22 80 56" fill="#10b981"><rect x="10" y="22" width="24" height="56" rx="5"/><rect x="66" y="22" width="24" height="56" rx="5"/><rect x="33" y="46.0" width="34" height="8"/><circle cx="50" cy="50" r="11"/></svg><span class="brand-name">HetOps</span></a>
     <a href="/" style="font-size:13px;color:var(--dim)">← Back to app</a>
   </div></nav>
 
