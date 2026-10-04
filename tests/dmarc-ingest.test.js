@@ -6,6 +6,7 @@ const path = require('node:path');
 
 process.env.DB_PATH = path.join(os.tmpdir(), `hetops-dmarc-${process.pid}.db`);
 process.env.DMARC_INGEST_SECRET = 'test-secret-0123456789';
+process.env.PLAN_OVERRIDES = 'ingest@example.com:pro';   // automatic collection is a paid feature
 const store = require('../db');
 const { app } = require('../server');
 const { extractReports, tokenFromAddress } = require('../dmarc-ingest');
@@ -78,6 +79,12 @@ test('POST /api/dmarc/ingest: secret required, unknown address ignored, known ad
   const saved = store.listDmarcReports(u.id);
   assert.equal(saved.length, 1);
   assert.equal(saved[0].records.length, 3);
+
+  // A free account keeps its address but stores nothing until it upgrades.
+  const free = store.upsertUser('free@example.com');
+  const freeAddr = `dmarc-${store.dmarcTokenFor(free.id)}@hetops.dev`;
+  assert.deepEqual(await (await post(freeAddr)).json(), { stored: 0 });
+  assert.equal(store.listDmarcReports(free.id).length, 0);
 
   assert.equal((await fetch(`${base}/api/dmarc/reports`)).status, 401);
   assert.equal((await fetch(`${base}/api/dmarc/address`)).status, 401);

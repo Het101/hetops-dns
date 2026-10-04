@@ -255,7 +255,9 @@ const configuredOrigins = (process.env.CORS_ORIGINS || '')
   .filter(Boolean);
 const ALLOWED_ORIGINS = new Set(configuredOrigins.length > 0 ? configuredOrigins : DEFAULT_ALLOWED_ORIGINS);
 
-app.use(express.json());
+// Signed webhooks need the exact raw bytes, so they skip the global JSON parser.
+const jsonParser = express.json();
+app.use((req, res, next) => (req.path === '/api/billing/webhook' ? next() : jsonParser(req, res, next)));
 app.use(cookieParser());
 
 // Security headers (defense-in-depth; applies to every response).
@@ -4154,6 +4156,11 @@ function currentUser(req) {
   const sess = store.getSession(req.cookies?.[SID_COOKIE]);
   return sess ? { id: sess.user_id, email: sess.email } : null;
 }
+const billing = require('./billing');
+const planOf = (userId) => billing.planFor(store.getUser(userId));
+// 402 = "this needs a paid plan"; the UI turns it into an upgrade prompt.
+const needsPlan = (res, feature) => res.status(402).json({ error: `${feature} is part of the paid plans.`, upgrade: true });
+
 function requireAuth(req, res, next) {
   const user = currentUser(req);
   if (!user) return res.status(401).json({ error: 'Authentication required' });
@@ -4201,7 +4208,11 @@ app.get('/api/auth/verify', (req, res) => {
 
 app.get('/api/auth/me', (req, res) => {
   const user = currentUser(req);
-  res.json(user ? { authenticated: true, email: user.email } : { authenticated: false });
+  if (!user) return res.json({ authenticated: false });
+  const u = store.getUser(user.id) || {};
+  const plan = billing.planFor(u);
+  res.json({ authenticated: true, email: user.email, plan: plan.key, planName: plan.name, limits: plan.limits,
+    planStatus: u.plan_status || null, planEndsAt: u.plan_ends_at || null, billingPortal: u.ls_portal_url || null });
 });
 
 app.post('/api/auth/logout', (req, res) => {
@@ -4232,6 +4243,29 @@ app.get('/api/alerts', requireAuth, (req, res) => {
   res.json({ alerts: store.listAlerts(req.user.id) });
 });
 // Change history for the signed-in user's watched domains, newest first.
+// ── Billing (Lemon Squeezy) ────────────────────────────────────
+app.get('/api/billing/plans', (req, res) => {
+  res.json({ plans: Object.values(billing.PLANS).map((p) => ({ ...p, available: p.price === 0 || !!billing.checkoutUrl(p.key, { id: 0, email: 'x@x' }) })) });
+});
+// Signed-in users go to Lemon Squeezy's hosted checkout with their id attached.
+app.get('/api/billing/checkout', requireAuth, (req, res) => {
+  const url = billing.checkoutUrl(String(req.query.plan || ''), store.getUser(req.user.id));
+  if (!url) return res.status(503).json({ error: 'Checkout is not available yet' });
+  res.redirect(303, url);
+});
+// Lemon Squeezy calls this on every subscription change. Trust only signed payloads.
+app.post('/api/billing/webhook', express.raw({ type: '*/*', limit: '1mb' }), (req, res) => {
+  const raw = Buffer.isBuffer(req.body) ? req.body : Buffer.from('');
+  if (!billing.verifySignature(raw, req.headers['x-signature'])) return res.status(401).json({ error: 'Bad signature' });
+  let payload; try { payload = JSON.parse(raw.toString('utf8')); } catch { return res.status(400).json({ error: 'Bad JSON' }); }
+  const update = billing.billingUpdate(payload);
+  if (update && store.getUser(update.userId)) {
+    store.setBilling(update.userId, update);
+    console.log(`billing: user ${update.userId} -> ${update.plan} (${update.status})`);
+  }
+  res.json({ ok: true });
+});
+
 // ── DMARC report ingestion ─────────────────────────────────────
 // Cloudflare Email Routing hands every mail sent to dmarc-<token>@hetops.dev to a small
 // Worker, which POSTs the raw message here with a shared secret. Unknown addresses get
@@ -4252,7 +4286,7 @@ app.post('/api/dmarc/ingest', express.raw({ type: '*/*', limit: '10mb' }), async
     const token = dmarcIngest.tokenFromAddress(req.headers['x-envelope-to']) || to.map(dmarcIngest.tokenFromAddress).find(Boolean);
     const userId = store.userForDmarcToken(token);
     let stored = 0;
-    if (userId) for (const r of reports) if (store.addDmarcReport(userId, r)) stored++;
+    if (userId && planOf(userId).limits.dmarcAuto) for (const r of reports) if (store.addDmarcReport(userId, r)) stored++;
     if (errors.length) console.warn('dmarc ingest: skipped attachments:', errors.join('; '));
     res.status(202).json({ stored });
   } catch (e) {
@@ -4278,8 +4312,10 @@ app.post('/api/alerts', requireAuth, (req, res) => {
   if (!host) return res.status(400).json({ error: 'Valid domain required' });
   // Each watched domain costs 4 network checks every scheduler tick.
   const existing = store.listAlerts(req.user.id);
-  if (existing.length >= 50 && !existing.some((a) => a.domain === host)) {
-    return res.status(400).json({ error: 'Watchlist limit reached (50 domains)' });
+  const plan = planOf(req.user.id);
+  if (existing.length >= plan.limits.domains && !existing.some((a) => a.domain === host)) {
+    return res.status(402).json({
+      error: `The ${plan.name} plan watches up to ${plan.limits.domains} domain${plan.limits.domains !== 1 ? 's' : ''}.`, upgrade: true });
   }
   const emailEnabled = req.body?.emailEnabled !== false;
   store.addAlert(req.user.id, host, emailEnabled ? 1 : 0);
@@ -4306,8 +4342,10 @@ app.post('/api/settings', requireAuth, async (req, res) => {
       if (!/^https?:$/.test(u.protocol)) return res.status(400).json({ error: 'Webhook must be http(s)' });
       if (await hostIsBlocked(u.hostname)) return res.status(400).json({ error: 'Webhook host not permitted' });
     }
+    if (url && !planOf(req.user.id).limits.webhooks) return needsPlan(res, 'Slack and webhook alerts');
     store.setWebhook(req.user.id, url);
   }
+  if (digestEnabled && !planOf(req.user.id).limits.digest) return needsPlan(res, 'The weekly digest');
   if (digestEnabled !== undefined) store.setDigest(req.user.id, !!digestEnabled);
   const u = store.getUser(req.user.id) || {};
   res.json({ ok: true, webhookUrl: u.webhook_url || '', digestEnabled: !!u.digest_enabled });
@@ -4318,6 +4356,7 @@ app.get('/api/keys', requireAuth, (req, res) => {
   res.json({ keys: store.listApiKeys(req.user.id) });
 });
 app.post('/api/keys', requireAuth, (req, res) => {
+  if (!planOf(req.user.id).limits.api) return needsPlan(res, 'API access');
   if (store.listApiKeys(req.user.id).length >= 10) return res.status(400).json({ error: 'Key limit reached (10)' });
   const key = store.createApiKey(req.user.id, req.body?.label || 'API key');
   res.json({ ok: true, key, keys: store.listApiKeys(req.user.id) });
@@ -4452,7 +4491,7 @@ async function runAlertChecks() {
           try { await mailer.sendAlertEmail(a.email, a.domain, changes); }
           catch (e) { console.error('alert email failed:', e.message); }
         }
-        if (a.webhookUrl) await sendWebhook(a.webhookUrl, a.domain, changes);
+        if (a.webhookUrl && planOf(a.userId).limits.webhooks) await sendWebhook(a.webhookUrl, a.domain, changes);
       }
     }
   } catch (e) {
@@ -4473,6 +4512,7 @@ async function runDigests() {
   digestRunning = true;
   try {
     for (const u of store.digestUsers()) {
+      if (!planOf(u.id).limits.digest) continue;   // digest is a Team feature
       if (u.last_digest && Date.now() - u.last_digest < WEEK_MS) continue;
       const alerts = store.listAlerts(u.id);
       if (!alerts.length) { store.markDigestSent(u.id); continue; }
