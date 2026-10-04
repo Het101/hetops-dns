@@ -1102,6 +1102,16 @@
     .dm-drop-title { font-weight: 600; font-size: 14.5px; }
     .dm-drop-sub { font-size: 12.5px; color: var(--text-muted); max-width: 56ch; line-height: 1.5; }
     #dmResults { margin-top: 18px; }
+    .dm-auto { display: flex; gap: 14px; align-items: center; justify-content: space-between; margin-top: 12px; padding: 14px 16px;
+      border-radius: 12px; border: 1px solid var(--border); background: rgba(255,255,255,.02); font-size: 13px; }
+    .dm-auto > div:first-child { display: flex; flex-direction: column; gap: 3px; }
+    .dm-auto span { color: var(--text-muted); line-height: 1.5; }
+    .dm-auto-on { flex-direction: column; align-items: stretch; gap: 8px; }
+    .dm-auto-on > .dm-auto-row { display: flex; flex-direction: row; align-items: center; justify-content: flex-start; gap: 8px; text-align: left; }
+    .dm-addr { font: 500 14px var(--mono); color: var(--brand); padding: 8px 10px; border-radius: 8px; background: rgba(0,0,0,.25); border: 1px solid var(--border); overflow-wrap: anywhere; }
+    .dm-auto code:not(.dm-addr) { font: 12px var(--mono); color: var(--text-dim); }
+    .dm-auto-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+    @media (max-width: 640px) { .dm-auto { flex-direction: column; align-items: stretch; } }
     .dm-meta { font-size: 12.5px; color: var(--text-faint); margin-bottom: 10px; }
     .dm-tiles { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 8px; }
     .dm-tile { padding: 14px 16px; border-radius: 12px; border: 1px solid var(--border); background: rgba(255,255,255,.02); display: flex; flex-direction: column; gap: 4px; }
@@ -1709,6 +1719,7 @@
       <span class="dm-drop-title">Drop DMARC report files here, or click to choose</span>
       <span class="dm-drop-sub">The .xml, .gz or .zip attachments from Google, Microsoft, Yahoo and others. Files are read in your browser and never uploaded.</span>
     </label>
+    <div id="dmAuto"></div>
     <div id="dmResults"></div>
   </div>
 </div>
@@ -3698,8 +3709,39 @@ async function deleteKey(key){
 
 // ── Bulk / multi-domain scan ───────────────────────────────────
 let bulkResults=[];
-function openDmarc(){ const o=$('dmarcOverlay'); o.classList.add('open'); if(window.lucide) lucide.createIcons({ root:o }); trapFocus(o); }
+function openDmarc(){ const o=$('dmarcOverlay'); o.classList.add('open'); renderDmarcAuto(); if(window.lucide) lucide.createIcons({ root:o }); trapFocus(o); }
 function closeDmarc(){ const o=$('dmarcOverlay'); if(o&&o.classList.contains('open')){ o.classList.remove('open'); releaseFocus(); } }
+// Signed in: a private address that collects reports automatically.
+async function renderDmarcAuto(){
+  const el=$('dmAuto'); if(!el) return;
+  if(!currentUser){
+    el.innerHTML=`<div class="dm-auto"><div><b>Collect reports automatically</b><span>Sign in to get a private address. Add it to your DMARC record and every report lands here, no files to download.</span></div><button class="hero-tool-btn" onclick="closeDmarc();openLogin()"><i data-lucide="log-in"></i>Sign in</button></div>`;
+    if(window.lucide) lucide.createIcons({ root: el }); return;
+  }
+  el.innerHTML=`<div class="dm-auto"><span class="load-spinner" style="width:14px;height:14px;border-width:2px"></span>Loading your report address…</div>`;
+  try{
+    const a=await fetch('/api/dmarc/address').then(r=>r.json());
+    el.innerHTML=`<div class="dm-auto dm-auto-on">
+      <div class="dm-auto-row"><b>Your report address</b>${a.enabled?'':'<span class="pill warn">being set up</span>'}</div>
+      <code class="dm-addr">${esc(a.address)}</code>
+      <span>Add <code>${esc(a.rua)}</code> to the <code>_dmarc</code> TXT record of each domain you want to watch. If the record already has an <code>rua=</code>, add this address after a comma.</span>
+      <div class="dm-auto-actions">
+        <button class="hero-tool-btn" onclick="cp('${escAttr(a.rua)}')"><i data-lucide="copy"></i>Copy rua tag</button>
+        <button class="hero-tool-btn" onclick="loadReceivedDmarc(this)"><i data-lucide="inbox"></i>Show received reports</button>
+      </div></div>`;
+  }catch(e){ el.innerHTML=''; }
+  if(window.lucide) lucide.createIcons({ root: el });
+}
+async function loadReceivedDmarc(btn){
+  const out=$('dmResults'); btn.disabled=true;
+  try{
+    const { reports }=await fetch('/api/dmarc/reports?days=30').then(r=>r.json());
+    out.innerHTML=reports&&reports.length?renderDmarc(HetOpsDmarc.summarize(reports),[])
+      :`<div class="dm-issue"><i data-lucide="inbox"></i><span>No reports received in the last 30 days. Providers send them once a day, so give it a day after updating your DMARC record.</span></div>`;
+    if(window.lucide) lucide.createIcons({ root: out });
+  }catch(e){ toast('Could not load reports','err'); }
+  btn.disabled=false;
+}
 async function loadDmarcFiles(files){
   const out=$('dmResults'); files=[...files]; if(!files.length) return;
   out.innerHTML=`<div class="sc-scanning"><span class="load-spinner" style="width:14px;height:14px;border-width:2px"></span>Reading ${files.length} file${files.length!==1?'s':''}…</div>`;
