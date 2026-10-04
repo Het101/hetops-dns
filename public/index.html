@@ -25,6 +25,7 @@
   <script src="https://cdn.jsdelivr.net/npm/lucide@0.469.0/dist/umd/lucide.min.js"></script>
   <script src="/shared/health-score.js"></script>
   <script src="/shared/fix-generator.js"></script>
+  <script src="/shared/dmarc.js"></script>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -1092,6 +1093,38 @@
     }
 
 
+    /* ══ DMARC REPORTS ════════════════════════════════════════════ */
+    .dm-drop { display: flex; flex-direction: column; align-items: center; gap: 6px; text-align: center; cursor: pointer;
+      padding: 28px 20px; border: 1.5px dashed var(--border-hi); border-radius: 14px; background: rgba(255,255,255,.015);
+      transition: border-color .15s, background .15s; }
+    .dm-drop:hover, .dm-drop.over { border-color: var(--brand-border); background: var(--brand-subtle); }
+    .dm-drop svg { width: 26px; height: 26px; color: var(--brand); }
+    .dm-drop-title { font-weight: 600; font-size: 14.5px; }
+    .dm-drop-sub { font-size: 12.5px; color: var(--text-muted); max-width: 56ch; line-height: 1.5; }
+    #dmResults { margin-top: 18px; }
+    .dm-meta { font-size: 12.5px; color: var(--text-faint); margin-bottom: 10px; }
+    .dm-tiles { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 8px; }
+    .dm-tile { padding: 14px 16px; border-radius: 12px; border: 1px solid var(--border); background: rgba(255,255,255,.02); display: flex; flex-direction: column; gap: 4px; }
+    .dm-tile span { font-size: 12px; color: var(--text-muted); }
+    .dm-tile b { font: 600 22px var(--sans); letter-spacing: -.02em; }
+    .dm-tile b.ok { color: var(--ok); } .dm-tile b.warn { color: var(--warn); } .dm-tile b.err { color: var(--err); }
+    .dm-issues { display: flex; flex-direction: column; gap: 6px; margin: 14px 0; }
+    .dm-issue { display: flex; gap: 10px; align-items: flex-start; padding: 10px 12px; border-radius: 10px; font-size: 13px; line-height: 1.5; border: 1px solid var(--border); }
+    .dm-issue svg { width: 16px; height: 16px; flex-shrink: 0; margin-top: 2px; }
+    .dm-issue.err { border-color: rgba(240,82,82,.35); background: rgba(240,82,82,.06); } .dm-issue.err svg { color: var(--err); }
+    .dm-issue.warn { border-color: rgba(245,158,11,.3); background: rgba(245,158,11,.05); } .dm-issue.warn svg { color: var(--warn); }
+    .dm-issue.ok { border-color: rgba(34,197,94,.3); } .dm-issue.ok svg { color: var(--ok); }
+    .dm-table-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: 12px; }
+    .dm-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    .dm-table th { text-align: left; font-weight: 500; font-size: 12px; color: var(--text-muted); padding: 10px 14px; border-bottom: 1px solid var(--border); }
+    .dm-table td { padding: 10px 14px; border-bottom: 1px solid var(--border); vertical-align: top; }
+    .dm-table tr:last-child td { border-bottom: 0; }
+    .dm-table .num { text-align: right; font-family: var(--mono); white-space: nowrap; }
+    .dm-table td.ok { color: var(--ok); } .dm-table td.warn { color: var(--warn); } .dm-table td.err { color: var(--err); }
+    .dm-ips { font: 11.5px var(--mono); color: var(--text-faint); margin-top: 2px; }
+    .dm-skip { font-size: 12px; color: var(--text-faint); margin-top: 10px; }
+    @media (max-width: 640px) { .dm-tiles { grid-template-columns: 1fr 1fr; } }
+
     /* ══ FIX GENERATOR ════════════════════════════════════════════ */
     .fix-card { margin-top: 14px; padding: 22px 24px; }
     .fix-done { display: flex; align-items: center; gap: 10px; color: var(--ok); font-size: 13.5px; }
@@ -1287,6 +1320,7 @@
           <button class="hero-tool-btn" onclick="openCompare()"><i data-lucide="git-compare"></i>Compare &amp; history</button>
           <button class="hero-tool-btn" onclick="openMonitor()"><i data-lucide="radar"></i>Monitoring</button>
           <button class="hero-tool-btn" onclick="openBulk()"><i data-lucide="list-checks"></i>Bulk scan</button>
+          <button class="hero-tool-btn" onclick="openDmarc()"><i data-lucide="mail-search"></i>DMARC reports</button>
         </div>
       </div>
       <aside class="hero-aside" aria-label="What a scan covers">
@@ -1659,6 +1693,23 @@
         <button type="submit" class="btn-analyze" id="loginSubmit" style="width:100%">Send magic link →</button>
       </form>
     </div>
+  </div>
+</div>
+
+<!-- ── DMARC report viewer ───────────────────────────────── -->
+<div class="cmp-overlay" id="dmarcOverlay" role="dialog" aria-modal="true" aria-label="DMARC reports">
+  <div class="cmp-panel" style="max-width:900px">
+    <div class="cmp-head">
+      <div class="cmp-title"><i data-lucide="mail-search"></i>DMARC reports</div>
+      <button class="cmp-close" aria-label="Close" onclick="closeDmarc()"><i data-lucide="x"></i></button>
+    </div>
+    <label class="dm-drop" id="dmDrop">
+      <input type="file" id="dmFiles" multiple accept=".xml,.gz,.zip,application/gzip,application/zip,text/xml" hidden>
+      <i data-lucide="upload-cloud"></i>
+      <span class="dm-drop-title">Drop DMARC report files here, or click to choose</span>
+      <span class="dm-drop-sub">The .xml, .gz or .zip attachments from Google, Microsoft, Yahoo and others. Files are read in your browser and never uploaded.</span>
+    </label>
+    <div id="dmResults"></div>
   </div>
 </div>
 
@@ -3647,6 +3698,52 @@ async function deleteKey(key){
 
 // ── Bulk / multi-domain scan ───────────────────────────────────
 let bulkResults=[];
+function openDmarc(){ const o=$('dmarcOverlay'); o.classList.add('open'); if(window.lucide) lucide.createIcons({ root:o }); trapFocus(o); }
+function closeDmarc(){ const o=$('dmarcOverlay'); if(o&&o.classList.contains('open')){ o.classList.remove('open'); releaseFocus(); } }
+async function loadDmarcFiles(files){
+  const out=$('dmResults'); files=[...files]; if(!files.length) return;
+  out.innerHTML=`<div class="sc-scanning"><span class="load-spinner" style="width:14px;height:14px;border-width:2px"></span>Reading ${files.length} file${files.length!==1?'s':''}…</div>`;
+  const reports=[], errors=[];
+  for(const f of files){
+    try{ reports.push(HetOpsDmarc.parseReport(await HetOpsDmarc.readReportFile(new Uint8Array(await f.arrayBuffer()), f.name))); }
+    catch(e){ errors.push(`${f.name}: ${e.message}`); }
+  }
+  if(!reports.length){ out.innerHTML=`<div class="err-box">${errors.map(esc).join('<br>')}</div>`; return; }
+  out.innerHTML=renderDmarc(HetOpsDmarc.summarize(reports), errors);
+  if(window.lucide) lucide.createIcons({ root: out });
+}
+function renderDmarc(s, errors){
+  const day=(t)=>t&&isFinite(t)?new Date(t*1000).toLocaleDateString(undefined,{day:'numeric',month:'short',year:'numeric'}):'';
+  const rateCls=s.passRate>=98?'ok':s.passRate>=90?'warn':'err';
+  const tile=(lbl,val,cls='')=>`<div class="dm-tile"><span>${lbl}</span><b class="${cls}">${val}</b></div>`;
+  const issues=s.issues.length?s.issues.map(i=>`<div class="dm-issue ${i.sev}"><i data-lucide="${i.sev==='err'?'alert-octagon':'alert-triangle'}"></i><span>${esc(i.text)}</span></div>`).join('')
+    :`<div class="dm-issue ok"><i data-lucide="check-circle"></i><span>Every sender in these reports passes DMARC with an aligned signature.</span></div>`;
+  const pct=(n,d)=>d?Math.round(n/d*100)+'%':'-';
+  const rows=s.senders.map(x=>{
+    const cls=x.failed&&!x.passed?'err':x.failed?'warn':'ok';
+    const ips=x.ips.slice(0,2).join(', ')+(x.ips.length>2?` +${x.ips.length-2}`:'');
+    return `<tr><td><b>${esc(x.label)}</b>${x.label!==x.ips[0]?`<div class="dm-ips">${esc(ips)}</div>`:''}</td>
+      <td class="num">${x.count.toLocaleString()}</td>
+      <td class="num ${cls}">${pct(x.passed,x.count)}</td>
+      <td class="num">${pct(x.dkimAligned,x.count)}</td>
+      <td class="num">${pct(x.spfAligned,x.count)}</td></tr>`;
+  }).join('');
+  return `<div class="dm-meta">${esc(s.domains.join(', '))} · ${s.reports} report${s.reports!==1?'s':''} · ${day(s.begin)} to ${day(s.end)}</div>
+    <div class="dm-tiles">${tile('Messages',s.messages.toLocaleString())}${tile('Pass DMARC',s.passRate+'%',rateCls)}${tile('Senders',s.senders.length)}${tile('Failing',s.failed.toLocaleString(),s.failed?'err':'ok')}</div>
+    <div class="dm-issues">${issues}</div>
+    <div class="dm-table-wrap"><table class="dm-table">
+      <thead><tr><th>Sender</th><th class="num">Messages</th><th class="num">Pass</th><th class="num">DKIM aligned</th><th class="num">SPF aligned</th></tr></thead>
+      <tbody>${rows}</tbody></table></div>
+    ${errors.length?`<div class="dm-skip">Skipped: ${errors.map(esc).join('; ')}</div>`:''}`;
+}
+(function wireDmarcDrop(){
+  const drop=$('dmDrop'), input=$('dmFiles'); if(!drop) return;
+  input.addEventListener('change',()=>loadDmarcFiles(input.files));
+  ['dragenter','dragover'].forEach(ev=>drop.addEventListener(ev,e=>{ e.preventDefault(); drop.classList.add('over'); }));
+  ['dragleave','drop'].forEach(ev=>drop.addEventListener(ev,e=>{ e.preventDefault(); drop.classList.remove('over'); }));
+  drop.addEventListener('drop',e=>loadDmarcFiles(e.dataTransfer.files));
+  $('dmarcOverlay').addEventListener('click',e=>{ if(e.target.id==='dmarcOverlay') closeDmarc(); });
+})();
 function openBulk(){ $('bulkResults').innerHTML=''; $('bulkOverlay').classList.add('open'); if(window.lucide) lucide.createIcons({ root: $('bulkOverlay') }); trapFocus($('bulkOverlay')); }
 function closeBulk(){ const o=$('bulkOverlay'); if(o.classList.contains('open')){ o.classList.remove('open'); releaseFocus(); } }
 
@@ -4832,6 +4929,7 @@ document.addEventListener('keydown', e=>{
     closeMonitor();
     closeLogin();
     closeBulk();
+    closeDmarc();
     hideHistoryDropdown();
   }
 });
