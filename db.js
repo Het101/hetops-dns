@@ -77,6 +77,28 @@ db.exec(`
     FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
   );
   CREATE INDEX IF NOT EXISTS idx_alert_events_user ON alert_events(user_id, ts DESC, id DESC);
+
+  -- DMARC: each user gets one private ingest address (dmarc-<token>@hetops.dev).
+  CREATE TABLE IF NOT EXISTS dmarc_addresses (
+    user_id    INTEGER PRIMARY KEY,
+    token      TEXT UNIQUE NOT NULL,
+    created_at INTEGER NOT NULL,
+    FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+  );
+  CREATE TABLE IF NOT EXISTS dmarc_reports (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id     INTEGER NOT NULL,
+    org         TEXT NOT NULL,
+    report_id   TEXT NOT NULL,
+    domain      TEXT NOT NULL,
+    begin_ts    INTEGER NOT NULL,
+    end_ts      INTEGER NOT NULL,
+    data        TEXT NOT NULL,
+    received_at INTEGER NOT NULL,
+    UNIQUE(user_id, org, report_id),
+    FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+  );
+  CREATE INDEX IF NOT EXISTS idx_dmarc_reports_user ON dmarc_reports(user_id, end_ts DESC);
 `);
 
 // Lightweight migrations for columns added after initial release (ignore if present).
@@ -189,6 +211,27 @@ const addAlertEvents = db.transaction((userId, domain, changes) => {
 });
 function listAlertEvents(userId, limit = 100) { return _listEvents.all(userId, Math.min(limit, ALERT_EVENT_CAP)); }
 
+// ── DMARC addresses and reports ──
+const _dmarcTok = db.prepare('SELECT token FROM dmarc_addresses WHERE user_id = ?');
+const _insDmarcTok = db.prepare('INSERT OR IGNORE INTO dmarc_addresses (user_id, token, created_at) VALUES (?, ?, ?)');
+const _dmarcUser = db.prepare('SELECT user_id FROM dmarc_addresses WHERE token = ?');
+const _insDmarcReport = db.prepare(`INSERT OR IGNORE INTO dmarc_reports
+  (user_id, org, report_id, domain, begin_ts, end_ts, data, received_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`);
+const _listDmarc = db.prepare('SELECT data FROM dmarc_reports WHERE user_id = ? AND end_ts >= ? ORDER BY end_ts DESC LIMIT ?');
+function dmarcTokenFor(userId) {
+  _insDmarcTok.run(userId, newId(8), now());   // 16 hex chars; no-op if the user already has one
+  return _dmarcTok.get(userId).token;
+}
+function userForDmarcToken(token) { const r = token && _dmarcUser.get(String(token).toLowerCase()); return r ? r.user_id : null; }
+// Returns true if stored, false if this report was already received.
+function addDmarcReport(userId, r) {
+  return _insDmarcReport.run(userId, r.org || '', r.reportId || `${r.begin}-${r.end}`, r.domain || '',
+    r.begin || 0, r.end || 0, JSON.stringify(r), now()).changes > 0;
+}
+function listDmarcReports(userId, sinceTs = 0, limit = 500) {
+  return _listDmarc.all(userId, sinceTs, limit).map((x) => safeParse(x.data));
+}
+
 // ── User settings (webhook, digest) ──
 const _getUser = db.prepare('SELECT id, email, webhook_url, digest_enabled, last_digest FROM users WHERE id = ?');
 const _setWebhook = db.prepare('UPDATE users SET webhook_url = ? WHERE id = ?');
@@ -234,6 +277,7 @@ module.exports = {
   addHistory, listHistory, clearHistory,
   addAlert, listAlerts, removeAlert, allAlerts, updateAlertState,
   addAlertEvents, listAlertEvents, ALERT_EVENT_CAP,
+  dmarcTokenFor, userForDmarcToken, addDmarcReport, listDmarcReports,
   getUser, setWebhook, setDigest, markDigestSent, digestUsers,
   createApiKey, listApiKeys, deleteApiKey, apiKeyUser, apiKeyExists,
 };

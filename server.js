@@ -4232,6 +4232,43 @@ app.get('/api/alerts', requireAuth, (req, res) => {
   res.json({ alerts: store.listAlerts(req.user.id) });
 });
 // Change history for the signed-in user's watched domains, newest first.
+// ── DMARC report ingestion ─────────────────────────────────────
+// Cloudflare Email Routing hands every mail sent to dmarc-<token>@hetops.dev to a small
+// Worker, which POSTs the raw message here with a shared secret. Unknown addresses get
+// the same 202 as known ones, so the endpoint never reveals which addresses exist.
+const dmarcIngest = require('./dmarc-ingest');
+const DMARC_DOMAIN = process.env.DMARC_DOMAIN || 'hetops.dev';
+function secretMatches(given) {
+  const want = process.env.DMARC_INGEST_SECRET || '';
+  const a = Buffer.from(String(given || '')), b = Buffer.from(want);
+  return want.length >= 16 && a.length === b.length && require('crypto').timingSafeEqual(a, b);
+}
+app.post('/api/dmarc/ingest', express.raw({ type: '*/*', limit: '10mb' }), async (req, res) => {
+  if (!process.env.DMARC_INGEST_SECRET) return res.status(503).json({ error: 'Ingestion is not configured' });
+  if (!secretMatches((req.headers.authorization || '').replace(/^Bearer\s+/i, ''))) return res.status(401).json({ error: 'Unauthorized' });
+  try {
+    const raw = Buffer.isBuffer(req.body) ? req.body : Buffer.from(String(req.body || ''));
+    const { reports, errors, to } = await dmarcIngest.extractReports(raw);
+    const token = dmarcIngest.tokenFromAddress(req.headers['x-envelope-to']) || to.map(dmarcIngest.tokenFromAddress).find(Boolean);
+    const userId = store.userForDmarcToken(token);
+    let stored = 0;
+    if (userId) for (const r of reports) if (store.addDmarcReport(userId, r)) stored++;
+    if (errors.length) console.warn('dmarc ingest: skipped attachments:', errors.join('; '));
+    res.status(202).json({ stored });
+  } catch (e) {
+    console.error('dmarc ingest failed:', e.message);
+    res.status(202).json({ stored: 0 });   // never make the mail provider retry a message we cannot read
+  }
+});
+app.get('/api/dmarc/address', requireAuth, (req, res) => {
+  const address = `dmarc-${store.dmarcTokenFor(req.user.id)}@${DMARC_DOMAIN}`;
+  res.json({ address, rua: `rua=mailto:${address}`, enabled: !!process.env.DMARC_INGEST_SECRET });
+});
+app.get('/api/dmarc/reports', requireAuth, (req, res) => {
+  const days = Math.max(1, Math.min(Number(req.query.days) || 30, 365));
+  res.json({ reports: store.listDmarcReports(req.user.id, Math.floor(Date.now() / 1000) - days * 86400) });
+});
+
 app.get('/api/alerts/events', requireAuth, (req, res) => {
   const limit = Math.max(1, Math.min(Number(req.query.limit) || 100, 500));
   res.json({ events: store.listAlertEvents(req.user.id, limit) });
