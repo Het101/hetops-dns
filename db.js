@@ -102,7 +102,9 @@ db.exec(`
 `);
 
 // Lightweight migrations for columns added after initial release (ignore if present).
-for (const col of ['webhook_url TEXT', 'digest_enabled INTEGER DEFAULT 0', 'last_digest INTEGER']) {
+for (const col of ['webhook_url TEXT', 'digest_enabled INTEGER DEFAULT 0', 'last_digest INTEGER',
+  // billing (Lemon Squeezy)
+  'plan TEXT', 'plan_status TEXT', 'plan_ends_at INTEGER', 'ls_customer_id TEXT', 'ls_subscription_id TEXT', 'ls_portal_url TEXT']) {
   try { db.exec(`ALTER TABLE users ADD COLUMN ${col}`); } catch { /* already exists */ }
 }
 
@@ -233,7 +235,12 @@ function listDmarcReports(userId, sinceTs = 0, limit = 500) {
 }
 
 // ── User settings (webhook, digest) ──
-const _getUser = db.prepare('SELECT id, email, webhook_url, digest_enabled, last_digest FROM users WHERE id = ?');
+const _getUser = db.prepare(`SELECT id, email, webhook_url, digest_enabled, last_digest,
+  plan, plan_status, plan_ends_at, ls_customer_id, ls_subscription_id, ls_portal_url FROM users WHERE id = ?`);
+const _setBilling = db.prepare(`UPDATE users SET plan = ?, plan_status = ?, plan_ends_at = ?,
+  ls_customer_id = COALESCE(?, ls_customer_id), ls_subscription_id = COALESCE(?, ls_subscription_id),
+  ls_portal_url = COALESCE(?, ls_portal_url) WHERE id = ?`);
+function setBilling(id, b) { return _setBilling.run(b.plan, b.status, b.endsAt, b.customerId, b.subscriptionId, b.portalUrl, id).changes > 0; }
 const _setWebhook = db.prepare('UPDATE users SET webhook_url = ? WHERE id = ?');
 const _setDigest = db.prepare('UPDATE users SET digest_enabled = ? WHERE id = ?');
 const _setLastDigest = db.prepare('UPDATE users SET last_digest = ? WHERE id = ?');
@@ -278,6 +285,6 @@ module.exports = {
   addAlert, listAlerts, removeAlert, allAlerts, updateAlertState,
   addAlertEvents, listAlertEvents, ALERT_EVENT_CAP,
   dmarcTokenFor, userForDmarcToken, addDmarcReport, listDmarcReports,
-  getUser, setWebhook, setDigest, markDigestSent, digestUsers,
+  getUser, setWebhook, setDigest, markDigestSent, digestUsers, setBilling,
   createApiKey, listApiKeys, deleteApiKey, apiKeyUser, apiKeyExists,
 };
