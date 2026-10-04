@@ -1790,6 +1790,17 @@
 </footer>
 
 <script>
+// ── Analytics (self-hosted Umami, cookieless). Off until both values are set. ──
+// Events carry no domain names: only what was used (scan, plans, checkout).
+const UMAMI_SRC = '';
+const UMAMI_WEBSITE_ID = '';
+if (UMAMI_SRC && UMAMI_WEBSITE_ID) {
+  const s = document.createElement('script');
+  s.defer = true; s.src = UMAMI_SRC; s.dataset.websiteId = UMAMI_WEBSITE_ID; s.dataset.domains = 'dns.hetops.dev';
+  document.head.appendChild(s);
+}
+const track = (name, data) => { try { window.umami && window.umami.track(name, data); } catch (e) {} };
+
 // ── State ──────────────────────────────────────────────────────
 const S = { dns:null, whois:null, ssl:null, geoip:null, ports:null, bl:null, prop:null, headers:null, dnssec:null, ocsp:null, mtasts:null, redirect:null, tech:null, http:null, mx:null, trace:null, cors:null, robots:null, ct:null, emailsec:null, takeover:null, hsts:null, csp:null, typosquat:null, ipv6:null, dnssecChain:null };
 
@@ -2120,6 +2131,7 @@ async function runLookup(){
 
   saveHistory(domain);
   syncURL(domain);
+  track('scan');
   hideHistoryDropdown();
   const analyzeBtn = document.querySelector('.btn-analyze');
   if(analyzeBtn){ analyzeBtn.disabled = true; analyzeBtn.textContent = 'Analyzing…'; }
@@ -3757,6 +3769,7 @@ const PLAN_FEATURES = {
 };
 async function openPlans(note){
   const o=$('plansOverlay'); o.classList.add('open'); trapFocus(o);
+  track(note?'upgrade-prompt':'plans-open');
   $('plansNote').innerHTML=note?`<div class="dm-issue warn"><i data-lucide="lock"></i><span>${esc(note)}</span></div>`:'';
   let plans=[]; try{ plans=(await fetch('/api/billing/plans').then(r=>r.json())).plans||[]; }catch(e){}
   const cur=currentUser?currentUser.plan:null;
@@ -3777,6 +3790,7 @@ async function openPlans(note){
 function closePlans(){ const o=$('plansOverlay'); if(o&&o.classList.contains('open')){ o.classList.remove('open'); releaseFocus(); } }
 function startCheckout(plan){
   if(!currentUser){ closePlans(); openLogin(); toast('Sign in first, then pick your plan','info',3500); return; }
+  track('checkout', { plan });
   location.href='/api/billing/checkout?plan='+encodeURIComponent(plan);
 }
 // Any 402 from the API means "this needs a paid plan": show why, with the plans.
