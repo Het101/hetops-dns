@@ -58,7 +58,7 @@ const hook = (payload, secret = process.env.LS_WEBHOOK_SECRET) => {
 };
 const sub = (userId, variant, status, extra = {}) => ({
   meta: { event_name: 'subscription_updated', custom_data: { user_id: String(userId) } },
-  data: { id: 'sub_1', attributes: { status, variant_id: variant, customer_id: 9, renews_at: null, ends_at: null,
+  data: { type: 'subscriptions', id: 'sub_1', attributes: { status, variant_id: variant, customer_id: 9, renews_at: null, ends_at: null,
     urls: { customer_portal: 'https://hetops.lemonsqueezy.com/billing' }, ...extra } },
 });
 
@@ -79,6 +79,15 @@ test('webhook: bad signature rejected; a valid subscription upgrades the user', 
   assert.equal(billing.planFor(store.getUser(u.id)).key, 'pro', 'unknown id falls back to the variant name');
   await hook(sub(u.id, 998, 'active', { variant_name: 'Team' }));
   assert.equal(billing.planFor(store.getUser(u.id)).key, 'team');
+
+  // A renewal invoice must not change the plan, even with no variant ids configured.
+  const ids = [process.env.LS_VARIANT_PRO, process.env.LS_VARIANT_TEAM];
+  delete process.env.LS_VARIANT_PRO; delete process.env.LS_VARIANT_TEAM;
+  assert.equal((await hook({ meta: { event_name: 'subscription_payment_success', custom_data: { user_id: String(u.id) } },
+    data: { type: 'subscription-invoices', id: 'inv_1', attributes: { status: 'paid', subscription_id: 1 } } })).status, 200);
+  assert.equal(billing.planFor(store.getUser(u.id)).key, 'team', 'invoice ignored');
+  assert.equal(billing.billingUpdate(sub(u.id, undefined, 'active')), null, 'no id and no name maps to nothing');
+  [process.env.LS_VARIANT_PRO, process.env.LS_VARIANT_TEAM] = ids;
 
   await hook(sub(u.id, 222, 'expired'));
   assert.equal(billing.planFor(store.getUser(u.id)).key, 'free');
