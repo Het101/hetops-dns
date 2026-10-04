@@ -3798,6 +3798,8 @@ function startCheckout(plan){
 }
 // Any 402 from the API means "this needs a paid plan": show why, with the plans.
 function needsUpgrade(r, d){ if(r.status!==402) return false; openPlans(d&&d.error); return true; }
+// /#pricing (linked from the legal page, emails, posts) opens the plans directly.
+if(location.hash==='#pricing') setTimeout(()=>openPlans(),0);
 // Back from Lemon Squeezy checkout: the webhook updates the plan within moments.
 if(new URLSearchParams(location.search).get('upgraded')){
   history.replaceState(null,'',location.pathname);
