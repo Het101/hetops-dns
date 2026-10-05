@@ -1219,141 +1219,6 @@ app.post('/api/blacklist-check', heavyApiLimiter, async (req, res) => {
   }
 });
 
-function analyzeCipherSuite(cipher) {
-  if (!cipher) return { pfs: false, rating: 'unknown', issues: [] };
-  
-  const issues = [];
-  let rating = 'good';
-  const name = cipher.name || '';
-  
-  const pfsCiphers = ['ECDHE', 'DHE', 'CHACHA20'];
-  const pfs = pfsCiphers.some(c => name.includes(c));
-  
-  const weakCiphers = ['RC4', 'DES', '3DES', 'MD5', 'SHA1'];
-  const hasWeak = weakCiphers.some(c => name.includes(c));
-  
-  const ecdheCurves = ['secp256r1', 'secp384r1', 'secp521r1', 'x25519'];
-  const modernCurves = ['secp256r1', 'secp384r1', 'secp521r1'];
-  
-  if (hasWeak) {
-    issues.push('Weak cipher suite detected');
-    rating = 'critical';
-  } else if (cipher.bits && cipher.bits < 128) {
-    issues.push('Key size below 128 bits');
-    rating = 'poor';
-  }
-  
-  if (!pfs) {
-    issues.push('No Perfect Forward Secrecy');
-    if (rating === 'good') rating = 'warning';
-  }
-  
-  if (cipher.version === 'TLSv1' || cipher.version === 'TLSv1.1') {
-    issues.push('Deprecated TLS version');
-    rating = 'critical';
-  }
-  
-  return { pfs, rating, issues, details: cipher };
-}
-
-function analyzeCertificateChain(cert, certChain) {
-  const chain = [];
-  const issues = [];
-  let rating = 'good';
-  
-  const now = new Date();
-  
-  if (cert && cert.raw) {
-    const leaf = {
-      type: 'leaf',
-      subject: cert.subject ? {
-        CN: cert.subject.CN,
-        O: cert.subject.O,
-        OU: cert.subject.OU
-      } : null,
-      issuer: cert.issuer ? {
-        CN: cert.issuer.CN,
-        O: cert.issuer.O,
-        OU: cert.issuer.OU
-      } : null,
-      validFrom: cert.valid_from,
-      validTo: cert.valid_to,
-      serialNumber: cert.serialNumber,
-      fingerprint: cert.fingerprint,
-      fingerprint256: cert.fingerprint256,
-      keyAlgorithm: cert.keyAlgorithm,
-      keyBits: cert.bits,
-      signatureAlgorithm: cert.signatureAlgorithm,
-      extKeyUsage: cert.extKeyUsage,
-      keyUsage: cert.keyUsage,
-      subjectAltName: cert.subjectaltname,
-      ocspURI: cert.ocspURI,
-      isCA: cert.isCA,
-      parsed: true
-    };
-    
-    if (cert.valid_from && cert.valid_to) {
-      const validFrom = new Date(cert.valid_from);
-      const validTo = new Date(cert.valid_to);
-      const daysRemaining = Math.floor((validTo - now) / (1000 * 60 * 60 * 24));
-      
-      if (now < validFrom) {
-        issues.push('Certificate not yet valid');
-        rating = 'error';
-      } else if (now > validTo) {
-        issues.push('Certificate expired');
-        rating = 'critical';
-      } else if (daysRemaining < 30) {
-        issues.push(`Certificate expires in ${daysRemaining} days`);
-        if (rating !== 'critical') rating = 'warning';
-      }
-    }
-    
-    chain.push(leaf);
-  }
-  
-  if (certChain && certChain.length > 0) {
-    certChain.forEach((intermediate, index) => {
-      if (intermediate && intermediate.raw) {
-        const validFrom = intermediate.valid_from ? new Date(intermediate.valid_from) : null;
-        const validTo = intermediate.valid_to ? new Date(intermediate.valid_to) : null;
-        
-        if (validTo && now > validTo) {
-          issues.push(`Intermediate certificate ${index + 1} expired`);
-          if (rating !== 'critical') rating = 'warning';
-        }
-        
-        chain.push({
-          type: 'intermediate',
-          depth: index + 1,
-          subject: intermediate.subject ? {
-            CN: intermediate.subject.CN,
-            O: intermediate.subject.O,
-            OU: intermediate.subject.OU
-          } : null,
-          issuer: intermediate.issuer ? {
-            CN: intermediate.issuer.CN,
-            O: intermediate.issuer.O
-          } : null,
-          validFrom: intermediate.valid_from,
-          validTo: intermediate.valid_to,
-          serialNumber: intermediate.serialNumber,
-          fingerprint256: intermediate.fingerprint256,
-          isCA: intermediate.isCA,
-          parsed: true
-        });
-      }
-    });
-  }
-  
-  if (chain.length < 2 && rating !== 'critical') {
-    issues.push('Incomplete certificate chain - may cause trust issues');
-    if (rating === 'good') rating = 'warning';
-  }
-  
-  return { chain, issues, rating };
-}
-
 function analyzeSecurityHeaders(headers) {
   const analysis = {
     headers: {},
@@ -1479,52 +1344,6 @@ function analyzeSecurityHeaders(headers) {
   
   return analysis;
 }
-
-const CIPHER_SUITES = {
-  protocols: {
-    'TLSv1.3': [
-      { name: 'TLS_AES_256_GCM_SHA384', security: 'good', pfs: true, bits: 256 },
-      { name: 'TLS_AES_128_GCM_SHA256', security: 'good', pfs: true, bits: 128 },
-      { name: 'TLS_CHACHA20_POLY1305_SHA256', security: 'good', pfs: true, bits: 256 },
-    ],
-    'TLSv1.2': [
-      { name: 'ECDHE-RSA-AES256-GCM-SHA384', security: 'good', pfs: true, bits: 256 },
-      { name: 'ECDHE-RSA-AES128-GCM-SHA256', security: 'good', pfs: true, bits: 128 },
-      { name: 'ECDHE-RSA-CHACHA20-POLY1305', security: 'good', pfs: true, bits: 256 },
-      { name: 'DHE-RSA-AES256-GCM-SHA384', security: 'good', pfs: true, bits: 256 },
-      { name: 'DHE-RSA-AES128-GCM-SHA256', security: 'good', pfs: true, bits: 128 },
-      { name: 'AES256-GCM-SHA384', security: 'warning', pfs: false, bits: 256 },
-      { name: 'AES128-GCM-SHA256', security: 'warning', pfs: false, bits: 128 },
-      { name: 'AES256-SHA256', security: 'warning', pfs: false, bits: 256 },
-      { name: 'AES128-SHA256', security: 'warning', pfs: false, bits: 128 },
-      { name: 'AES256-SHA', security: 'warning', pfs: false, bits: 256 },
-      { name: 'AES128-SHA', security: 'warning', pfs: false, bits: 128 },
-      { name: 'DES-CBC3-SHA', security: 'critical', pfs: false, bits: 112 },
-      { name: 'RC4-SHA', security: 'critical', pfs: false, bits: 128 },
-      { name: 'RC4-MD5', security: 'critical', pfs: false, bits: 128 },
-    ],
-    'TLSv1.1': [
-      { name: 'AES256-SHA', security: 'critical', pfs: false, bits: 256 },
-      { name: 'AES128-SHA', security: 'critical', pfs: false, bits: 128 },
-      { name: 'DES-CBC3-SHA', security: 'critical', pfs: false, bits: 112 },
-      { name: 'RC4-SHA', security: 'critical', pfs: false, bits: 128 },
-    ],
-    'TLSv1.0': [
-      { name: 'AES256-SHA', security: 'critical', pfs: false, bits: 256 },
-      { name: 'AES128-SHA', security: 'critical', pfs: false, bits: 128 },
-      { name: 'DES-CBC3-SHA', security: 'critical', pfs: false, bits: 112 },
-      { name: 'RC4-SHA', security: 'critical', pfs: false, bits: 128 },
-      { name: 'RC4-MD5', security: 'critical', pfs: false, bits: 128 },
-    ],
-    'SSLv3': [
-      { name: 'DES-CBC3-SHA', security: 'critical', pfs: false, bits: 112 },
-      { name: 'RC4-SHA', security: 'critical', pfs: false, bits: 128 },
-      { name: 'RC4-MD5', security: 'critical', pfs: false, bits: 128 },
-    ],
-  },
-  weakPatterns: [/RC4/i, /DES/i, /MD5/i, /NULL/i, /EXPORT/i, /anon/i, /kRB5/i, /aDSS/i],
-  pfsPatterns: [/ECDHE/i, /DHE/i, /CHACHA20/i],
-};
 
 function analyzeVulnerabilities(protocol, cipherName) {
   const vuln = {
@@ -2089,47 +1908,6 @@ app.post('/api/ssl-labs', heavyApiLimiter, async (req, res) => {
   const host = normalizeDomain(domain);
   if (!host) return res.status(400).json({ error: 'Invalid domain format' });
 
-  const fullReport = await new Promise((resolve) => {
-    const baseSslResult = {
-      host: host,
-      reportTime: new Date().toISOString(),
-      isPublic: false,
-      status: 'READY',
-      hostStart: new Date().toISOString(),
-      hostEnd: new Date().toISOString(),
-      engineVersion: '4.0.0',
-      criteriaVersion: '2009q',
-      durationMs: 0,
-    };
-
-    const endpoint = {
-      ipAddress: null,
-      serverName: host,
-      statusMessage: 'Ready',
-      grade: 'T',
-      gradeTrustIgnored: 'T',
-      isExceptional: false,
-      progress: 100,
-      details: {
-        certChains: [],
-        protocols: [],
-        supportedCurves: [],
-        serverSignature: null,
-        compressionMethods: [],
-        sessionTickets: [],
-        ocspStapling: false,
-        staplingRevoked: false,
-        sne: false,
-        protocolsInfo: [],
-        ciphersInfo: [],
-        simulationInfo: [],
-        issuesInfo: [],
-      },
-    };
-
-    resolve({ ...baseSslResult, endpoints: [endpoint] });
-  });
-
   const sslData = await new Promise((resolve, reject) => {
     const options = {
       hostname: 'api.ssllabs.com',
@@ -2268,7 +2046,7 @@ app.post('/api/dnssec', heavyApiLimiter, async (req, res) => {
   const resolver = new Resolver({ timeout: 5000, tries: 2 });
 
   try {
-    const soaResult = await resolver.resolveSoa(host);
+    await resolver.resolveSoa(host); // throws when the zone has no SOA
     
     const dnssecChecks = {
       present: false,
@@ -3003,7 +2781,6 @@ app.post('/api/mx-smtp', heavyApiLimiter, async (req, res) => {
 
     const allHaveStarttls = result.mxServers.every(m => m.smtp.starttls);
     const allHaveIPv4 = result.mxServers.every(m => m.ipv4);
-    const allHaveBanner = result.mxServers.every(m => m.smtp.banner);
 
     if (allHaveStarttls && allHaveIPv4) {
       result.rating = 'good';
