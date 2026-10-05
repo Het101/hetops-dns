@@ -395,7 +395,10 @@ function cacheMiddleware(req, res, next) {
   const originalJson = res.json.bind(res);
   res.json = (body) => {
     // Only cache successful, non-error payloads.
-    if (res.statusCode === 200 && body && !body.error) {
+    // A section that couldn't be looked up (spf.error, dmarc.error, ...) is a transient
+    // failure: caching it would serve "DNS failed" to everyone for the whole TTL.
+    const partialFailure = body && Object.values(body).some((v) => v && typeof v === 'object' && !Array.isArray(v) && v.error);
+    if (res.statusCode === 200 && body && !body.error && !partialFailure) {
       responseCache.set(key, { body, status: 200, expires: Date.now() + CACHE_TTL_MS });
       if (responseCache.size > CACHE_MAX_ENTRIES + 50) pruneCache();
     }
@@ -558,6 +561,12 @@ function parseDomains(domain, domains) {
   return [...unique].slice(0, 20);
 }
 
+// Only these mean "the record does not exist". Timeouts, refusals and SERVFAIL mean
+// "couldn't check": reporting those as missing would tell users their SPF or DMARC is
+// gone, and Domain Watch would email a false "record removed" alert.
+function isDnsAbsent(err) {
+  return ['ENODATA', 'ENOTFOUND', 'ENODOMAIN'].includes(err?.code);
+}
 function isExpectedDnsMiss(err) {
   // Treat "no record" outcomes AND transient resolver failures (timeouts, refused,
   // reset) as a graceful miss. These are best-effort lookups; a transient failure
@@ -3335,8 +3344,11 @@ async function runEmailSecurityCheck(host, opts = {}) {
       result.recommendations.push('Add SPF: "v=spf1 include:<your-mail-provider> -all"');
     }
   } catch (e) {
-    if (!isExpectedDnsMiss(e)) result.spf.issues.push('SPF lookup failed: ' + e.message);
-    else { result.spf.issues.push('No SPF record found'); result.recommendations.push('Add SPF: "v=spf1 include:<your-mail-provider> -all"'); }
+    if (isDnsAbsent(e)) { result.spf.issues.push('No SPF record found'); result.recommendations.push('Add SPF: "v=spf1 include:<your-mail-provider> -all"'); }
+    else {
+      result.spf.error = e?.code || 'lookup failed';
+      result.spf.issues.push(`Could not look up SPF (${result.spf.error}): a DNS problem, not a missing record. Try again`);
+    }
   }
 
   // DMARC analysis
@@ -3385,8 +3397,10 @@ async function runEmailSecurityCheck(host, opts = {}) {
       result.recommendations.push(`Add DMARC: "_dmarc.${host} TXT v=DMARC1; p=quarantine; rua=mailto:dmarc@${host}"`);
     }
   } catch (e) {
-    if (!isExpectedDnsMiss(e)) result.dmarc.issues.push('DMARC lookup failed: ' + e.message);
-    else {
+    if (!isDnsAbsent(e)) {
+      result.dmarc.error = e?.code || 'lookup failed';
+      result.dmarc.issues.push(`Could not look up DMARC (${result.dmarc.error}): a DNS problem, not a missing record. Try again`);
+    } else {
       result.dmarc.issues.push('No DMARC record found');
       result.recommendations.push(`Add DMARC: "_dmarc.${host} TXT v=DMARC1; p=quarantine; rua=mailto:dmarc@${host}"`);
     }
@@ -4212,11 +4226,11 @@ async function checkDomainStatus(domain) {
     whoisDays: parseWhoisExpiryDays(whois),
     aRecords,
     // '' means "checked, none published"; null means "could not check".
-    spf: mailOk ? (mail.spf?.present ? mail.spf.record : '') : null,
+    spf: mailOk && !mail.spf?.error ? (mail.spf?.present ? mail.spf.record : '') : null,
     // Tracked apart from the record text: a provider can grow its own include
     // (e.g. a new netblock under _spf.google.com) and push you over 10 unchanged.
-    spfLookups: mailOk && mail.spf?.lookups ? mail.spf.lookups.count : null,
-    dmarcPolicy: mailOk ? (mail.dmarc?.present ? (mail.dmarc.policy || 'none') : '') : null,
+    spfLookups: mailOk && !mail.spf?.error && mail.spf?.lookups ? mail.spf.lookups.count : null,
+    dmarcPolicy: mailOk && !mail.dmarc?.error ? (mail.dmarc?.present ? (mail.dmarc.policy || 'none') : '') : null,
     mx: records('MX'),
     ns: records('NS'),
   };
@@ -4354,6 +4368,7 @@ setInterval(runDigests, 60 * 60 * 1000).unref();
 // Page routes read from disk; a generous per-IP cap keeps them from being a cheap flood target.
 const pageLimiter = rateLimit({ windowMs: 60 * 1000, max: 600, standardHeaders: true, legacyHeaders: false });
 app.get('/legal', pageLimiter, (req, res) => res.sendFile(path.join(__dirname, 'public', 'legal.html')));
+app.get('/spf-checker', pageLimiter, (req, res) => res.sendFile(path.join(__dirname, 'public', 'spf-checker.html')));
 for (const page of ['terms', 'privacy', 'refunds']) app.get(`/${page}`, (req, res) => res.redirect(301, `/legal#${page}`));
 
 app.get('/docs', pageLimiter, (req, res) => {
@@ -4386,6 +4401,7 @@ if (require.main === module) {
 
 // Exported for tests (node --test); the server only listens when run directly.
 module.exports = {
+  isDnsAbsent,
   app,
   normalizeDomain,
   svgBadge,
