@@ -170,3 +170,22 @@ test('diffStatus watches email authentication and delegation', () => {
   // Order of MX/NS answers is not a change.
   assert.deepEqual(diffStatus({ mx: ['a', 'b'] }, { mx: ['b', 'a'] }), []);
 });
+
+test('normalizeDomain runs in linear time on pathological dotted input (ReDoS)', () => {
+  const start = Date.now();
+  assert.equal(normalizeDomain('-.'.repeat(120) + '!'), '');
+  assert.ok(Date.now() - start < 200, `took ${Date.now() - start}ms`);
+  assert.equal(normalizeDomain('a..example.com'), '');
+  assert.equal(normalizeDomain('.example.com'), '');
+  assert.equal(normalizeDomain('sub.example.co.uk'), 'sub.example.co.uk');
+});
+
+test('EMAIL_RE accepts normal addresses and is linear on long dotted input (ReDoS)', () => {
+  const { EMAIL_RE } = require('../server');
+  assert.ok(EMAIL_RE.test('a.b+c@mail.example.co.uk'));
+  assert.ok(!EMAIL_RE.test('a@example'));
+  assert.ok(!EMAIL_RE.test('a@b..com'));
+  const start = Date.now();
+  assert.ok(!EMAIL_RE.test('a@' + '!.'.repeat(50000) + ' '));
+  assert.ok(Date.now() - start < 200, `took ${Date.now() - start}ms`);
+});
