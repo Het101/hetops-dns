@@ -2460,17 +2460,15 @@ app.post('/api/tech', heavyApiLimiter, async (req, res) => {
     'Heroku': [/heroku/i],
     'Akamai': [/akamai/i, /akamaized/],
     'Fastly': [/fastly/i, /fastlylb/],
-    'Cloudflare': [/cloudflare/i, /cloudflaressl/],
   };
 
   const CDN_PATTERNS = {
-    'Cloudflare': [/cloudflare\.com/, /cloudflaressl/, /cloudflare\.net/],
+    'Cloudflare': [/cloudflare\.com/, /cloudflaressl/, /cloudflare\.net/, /1\.1\.1\.1/, /cloudflare-original/],
     'CloudFront': [/cloudfront\.net/, /d3n8a8pro7vhmx/, /d2ahvt9io4\.cloudfront/],
     'Fastly': [/fastly\.net/, /fastlylb/, /freetls\.fastly/],
     'Akamai': [/akamai\.com/, /akamaized\.net/, /edgesuite\.net/],
     'Azure CDN': [/azureedge\.net/, /azurewebsites\.net/],
     'Google Cloud CDN': [/googleusercontent\.com/, /gstatic\.com/],
-    'Cloudflare': [/1\.1\.1\.1/, /cloudflare-original/],
     'CDN77': [/cdn77/, /cdnp1/],
     'KeyCDN': [/keycdn/, /kxcdn/],
     'BunnyCDN': [/bunnycdn/, / Bunny/],
