@@ -3710,9 +3710,9 @@ async function renderAccountPanel(){
     ]);
   }catch(e){}
   const keyRows=keys.length? keys.map(k=>`<div class="acct-key">
-      <code>${esc(k.key.slice(0,10))}…${esc(k.key.slice(-4))}</code>
+      <code>${esc(k.hint||'hk_…')}</code>
       <span class="acct-key-label">${esc(k.label||'')}</span>
-      <button class="mon-remove" onclick="deleteKey('${esc(k.key)}')">Revoke</button>
+      <button class="mon-remove" onclick="deleteKey('${esc(k.id)}')">Revoke</button>
     </div>`).join('') : `<div style="font-size:12px;color:var(--text-faint);padding:4px 0">No keys yet.</div>`;
   const plan=currentUser.planName||'Free';
   // Mark features the current plan doesn't include; using them opens the plans dialog.
@@ -3763,8 +3763,8 @@ async function createKey(){
     renderAccountPanel();
   }catch(e){ toast(e.message||'Could not create key','err'); }
 }
-async function deleteKey(key){
-  try{ await fetch('/api/keys/'+encodeURIComponent(key),{method:'DELETE'}); }catch(e){}
+async function deleteKey(id){
+  try{ await fetch('/api/keys/'+encodeURIComponent(id),{method:'DELETE'}); }catch(e){}
   renderAccountPanel(); toast('API key revoked','info',2000);
 }
 

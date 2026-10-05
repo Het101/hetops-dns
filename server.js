@@ -4361,8 +4361,8 @@ app.post('/api/keys', requireAuth, (req, res) => {
   const key = store.createApiKey(req.user.id, req.body?.label || 'API key');
   res.json({ ok: true, key, keys: store.listApiKeys(req.user.id) });
 });
-app.delete('/api/keys/:key', requireAuth, (req, res) => {
-  store.deleteApiKey(req.user.id, req.params.key || '');
+app.delete('/api/keys/:id', requireAuth, (req, res) => {
+  store.deleteApiKey(req.user.id, req.params.id || '');
   res.json({ ok: true, keys: store.listApiKeys(req.user.id) });
 });
 

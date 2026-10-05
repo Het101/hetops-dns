@@ -7,9 +7,9 @@ HetOps DNS is a hosted service at [dns.hetops.dev](https://dns.hetops.dev). Scan
 | Data | Where it comes from | How it is stored |
 |---|---|---|
 | Account email address | You, at sign-in | Plain text in the SQLite database |
-| Sign-in links | Emailed on request | Random 24-byte token, single use, expires after 15 minutes; requesting a new one invalidates the old ones. Stored as-is, not hashed |
-| Sessions | Created when a sign-in link is used | Random 32-byte id in an `HttpOnly`, `SameSite=Lax` cookie, `Secure` in production, 30 days. Stored as-is, not hashed |
-| API keys (`hk_...`) | Created by you in the dashboard | **Stored as-is, not hashed.** Anyone who can read the database can use them. Delete a key you no longer need |
+| Sign-in links | Emailed on request | Random 24-byte token, single use, expires after 15 minutes; requesting a new one invalidates the old ones. Only a SHA-256 hash is stored |
+| Sessions | Created when a sign-in link is used | Random 32-byte id in an `HttpOnly`, `SameSite=Lax` cookie, `Secure` in production, 30 days. Only a SHA-256 hash is stored |
+| API keys (`hk_...`) | Created by you in the dashboard | Shown once, when created. Only a SHA-256 hash and a short hint (`hk_1a2b3c4d…9f0e`) are stored, so a copy of the database can't be used to call the API. Delete a key you no longer need |
 | Watched domains, scan history, alert events | Your monitoring settings | Plain text; history and events are trimmed to a fixed length per user |
 | Alert webhook URL | You, in settings | Plain text. Treat it as a credential on your side too |
 | DMARC aggregate reports | Mail providers, via your private `dmarc-<token>@hetops.dev` address | Parsed XML stored per user. Reports contain the sending IP addresses seen for your domain. There is no self-serve deletion yet; email to have them removed |
@@ -46,12 +46,12 @@ Each line here is something the code actually does. A defect in any of them is a
 | Scans of a user-supplied domain refuse to target loopback, private, link-local, CGNAT, multicast and metadata ranges (IPv4, IPv6 and IPv4-mapped IPv6) | `ssrfGuard` / `isBlockedIp` in `server.js` |
 | Rate limits per IP, and per key for API callers, with a tighter limit on expensive checks and on sign-in requests | `express-rate-limit` setup in `server.js` |
 | A Content-Security-Policy on every page | `server.js` |
+| A copy of the database can't be used to sign in or call the API: sign-in tokens, session ids and API keys are stored only as SHA-256 hashes | `hashSecret` in `db.js`; `tests/secrets-at-rest.test.js` and `tests/secrets-migration.test.js` |
 | Secrets do not enter the git history | `.githooks/pre-commit` and the `hygiene` CI job block private keys, AWS keys, Slack webhooks, SMTP/database URLs with passwords, npm tokens and `.env` files |
 
 Known limits, so nobody mistakes them for guarantees:
 
 - The SSRF check resolves the hostname and checks the answers before the scan runs. It is not pinned to the connection the scan then makes, so a domain that changes its DNS answer between the two (DNS rebinding) is not fully covered.
-- API keys, session ids and sign-in tokens are not hashed at rest (see above).
 
 ## Things that are not vulnerabilities
 
