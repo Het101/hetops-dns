@@ -563,7 +563,7 @@ function parseDomains(domain, domains) {
 
 // Only these mean "the record does not exist". Timeouts, refusals and SERVFAIL mean
 // "couldn't check": reporting those as missing would tell users their SPF or DMARC is
-// gone, and Domain Watch would email a false "record removed" alert.
+// gone, and monitoring would email a false "record removed" alert.
 function isDnsAbsent(err) {
   return ['ENODATA', 'ENOTFOUND', 'ENODOMAIN'].includes(err?.code);
 }
