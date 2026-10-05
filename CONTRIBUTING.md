@@ -10,7 +10,7 @@
 
 ## Running it locally
 
-Node 20 or newer (production runs Node 20; CI also tests 22).
+Node 20 or newer (production runs Node 22; CI also tests 20 and 24).
 
 ```bash
 git clone https://github.com/Het101/hetops-dns.git
