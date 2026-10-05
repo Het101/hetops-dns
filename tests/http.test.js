@@ -148,3 +148,13 @@ test('a DNS failure is reported as "could not check", never as a missing SPF/DMA
     Resolver.prototype.resolveTxt = real;
   }
 });
+
+test('the portfolio may call the public API, but never with credentials', async () => {
+  const pre = await fetch(`${base}/api/email-security`, { method: 'OPTIONS',
+    headers: { Origin: 'https://hetops.dev', 'Access-Control-Request-Method': 'POST', 'Access-Control-Request-Headers': 'content-type' } });
+  assert.ok(pre.status < 400, `preflight ${pre.status}`);
+  assert.equal(pre.headers.get('access-control-allow-origin'), 'https://hetops.dev');
+  assert.equal(pre.headers.get('access-control-allow-credentials'), null, 'cookies must never be allowed cross-origin');
+  const other = await fetch(`${base}/api/email-security`, { method: 'OPTIONS', headers: { Origin: 'https://evil.example' } });
+  assert.equal(other.status, 403);
+});
