@@ -3264,6 +3264,8 @@ app.post('/api/cert-transparency', heavyApiLimiter, async (req, res) => {
 const DKIM_SELECTOR_RE = /^[a-z0-9_.-]{1,63}$/i;
 const DEFAULT_DKIM_SELECTORS = ['default', 'google', 'mail', 'dkim', 'k1', 'k2', 's1', 's2', 'email', 'selector1', 'selector2', 'mimecast', 'sendgrid', 'mailchimp', 'amazonses'];
 
+const { analyzeSpf, spfLookupIssues, LIMIT: SPF_LOOKUP_LIMIT } = require('./spf');
+
 async function runEmailSecurityCheck(host, opts = {}) {
   const resolver = new Resolver();
 
@@ -3302,24 +3304,32 @@ async function runEmailSecurityCheck(host, opts = {}) {
       } else if (lower.includes('?all')) {
         result.spf.policy = '?all';
         result.spf.issues.push('SPF uses ?all (neutral) — no protection against spoofing');
+      } else if (/(^|\s)redirect=\S/i.test(spfStr)) {
+        // redirect= hands the verdict to another domain's record (gmail.com does this).
+        result.spf.policy = 'redirect';
       } else {
         result.spf.issues.push('SPF record has no final all mechanism — behavior is undefined');
       }
 
-      const lookupCount = (result.spf.mechanisms.filter(m =>
-        /^[+\-~?]?(include:|a[:/]?|mx[:/]?|redirect=|exists:)/i.test(m)
-      )).length;
-      if (lookupCount > 10) {
-        result.spf.issues.push(`SPF exceeds 10 DNS lookups (found ~${lookupCount}) — some servers will reject mail`);
+      // Count lookups the way receivers do: through every nested include and redirect.
+      const spfRecords = txt.filter(r => /^v=spf1(\s|$)/i.test(r.join('')));
+      if (spfRecords.length > 1) {
+        result.spf.issues.push(`${spfRecords.length} SPF records published; receivers treat that as a permerror. Merge them into one`);
       }
+      const lookups = await analyzeSpf(host, (name) => resolver.resolveTxt(name), spfStr);
+      result.spf.lookups = { count: lookups.count, limit: SPF_LOOKUP_LIMIT, voidCount: lookups.voidCount, breakdown: lookups.breakdown };
+      result.spf.issues.push(...spfLookupIssues(lookups));
 
       if (/\bptr\b/i.test(spfStr)) {
         result.spf.issues.push('SPF uses deprecated ptr mechanism — remove it');
       }
 
+      // An SPF that always errors (too many lookups, duplicate records) protects nothing.
+      const spfBroken = lookups.count > SPF_LOOKUP_LIMIT || lookups.voidCount > 2 || spfRecords.length > 1;
       result.spf.score = result.spf.issues.length === 0 && result.spf.policy === '-all' ? 100
         : result.spf.issues.length === 0 ? 85
-        : result.spf.policy === '+all' ? 10 : 60;
+        : result.spf.policy === '+all' ? 10
+        : spfBroken ? 20 : 60;
     } else {
       result.spf.issues.push('No SPF record found');
       result.recommendations.push('Add SPF: "v=spf1 include:<your-mail-provider> -all"');
@@ -4203,6 +4213,9 @@ async function checkDomainStatus(domain) {
     aRecords,
     // '' means "checked, none published"; null means "could not check".
     spf: mailOk ? (mail.spf?.present ? mail.spf.record : '') : null,
+    // Tracked apart from the record text: a provider can grow its own include
+    // (e.g. a new netblock under _spf.google.com) and push you over 10 unchanged.
+    spfLookups: mailOk && mail.spf?.lookups ? mail.spf.lookups.count : null,
     dmarcPolicy: mailOk ? (mail.dmarc?.present ? (mail.dmarc.policy || 'none') : '') : null,
     mx: records('MX'),
     ns: records('NS'),
@@ -4232,6 +4245,12 @@ function diffStatus(prev, cur) {
     if (!cur.spf) ch.push('SPF record removed: receivers can no longer verify mail from this domain');
     else if (!prev.spf) ch.push(`SPF record added: ${cur.spf}`);
     else ch.push(`SPF record changed: ${prev.spf} → ${cur.spf}`);
+  }
+  if (prev.spfLookups != null && cur.spfLookups != null) {
+    if (prev.spfLookups <= SPF_LOOKUP_LIMIT && cur.spfLookups > SPF_LOOKUP_LIMIT)
+      ch.push(`SPF now needs ${cur.spfLookups} DNS lookups (limit ${SPF_LOOKUP_LIMIT}): receivers fail SPF for this domain`);
+    else if (prev.spfLookups > SPF_LOOKUP_LIMIT && cur.spfLookups <= SPF_LOOKUP_LIMIT)
+      ch.push(`SPF is under the ${SPF_LOOKUP_LIMIT}-lookup limit again (${cur.spfLookups} lookups)`);
   }
   if (prev.dmarcPolicy != null && cur.dmarcPolicy != null && prev.dmarcPolicy !== cur.dmarcPolicy) {
     if (!cur.dmarcPolicy) ch.push(`DMARC record removed (was p=${prev.dmarcPolicy}): spoofed mail is no longer blocked`);

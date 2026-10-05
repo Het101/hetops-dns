@@ -224,3 +224,13 @@ test('isBlockedIp: IPv4 hidden in IPv6 forms is still blocked; public addresses 
     assert.equal(isBlockedIp(ip), false, `${ip} should be allowed`);
   }
 });
+
+test('diffStatus alerts when SPF crosses the 10-lookup limit, even with the record unchanged', () => {
+  const rec = 'v=spf1 include:_spf.google.com -all';
+  const over = diffStatus({ spf: rec, spfLookups: 10 }, { spf: rec, spfLookups: 11 });
+  assert.deepEqual(over, ['SPF now needs 11 DNS lookups (limit 10): receivers fail SPF for this domain']);
+  assert.deepEqual(diffStatus({ spf: rec, spfLookups: 12 }, { spf: rec, spfLookups: 9 }), ['SPF is under the 10-lookup limit again (9 lookups)']);
+  assert.deepEqual(diffStatus({ spf: rec, spfLookups: 4 }, { spf: rec, spfLookups: 6 }), [], 'moving below the limit is not news');
+  assert.deepEqual(diffStatus({ spf: rec }, { spf: rec, spfLookups: 14 }), [], 'no baseline from before this was tracked');
+  assert.deepEqual(diffStatus({ spf: rec, spfLookups: 14 }, { spf: rec, spfLookups: null }), [], 'a failed check is not a change');
+});

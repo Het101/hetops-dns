@@ -3684,7 +3684,7 @@ function closeMonitor(){ const o=$('monOverlay'); if(o.classList.contains('open'
 // What the background monitor detected, grouped by day, newest first.
 function changeTimeline(events){
   if(!events.length) return `<div class="tl-empty">No changes detected yet. Every certificate, SPF, DMARC, MX and nameserver change on your watched domains will be listed here.</div>`;
-  const tone=(c)=>/removed|weakened|expired|EXPIRED|blacklisted|Nameservers changed/i.test(c)?'err':/within|expires in/i.test(c)?'warn':'info';
+  const tone=(c)=>/removed|weakened|expired|EXPIRED|blacklisted|Nameservers changed|fail SPF/i.test(c)?'err':/within|expires in/i.test(c)?'warn':'info';
   let html='', lastDay='';
   for(const e of events){
     const day=new Date(e.ts).toLocaleDateString(undefined,{weekday:'short',day:'numeric',month:'short'});
@@ -4578,6 +4578,9 @@ function renderEmailSec(data){
         ${spf.present?`
           <div style="font-family:'Geist Mono', monospace;font-size:11px;color:var(--accent);word-break:break-all;padding:8px;background:rgba(8,145,178,.05);border-radius:6px;margin-bottom:10px">${esc(spf.record||'')}</div>
           ${spf.policy?`<span class="pill ${spf.policy==='-all'?'ok':spf.policy==='+all'?'err':'warn'}">${esc(spf.policy)}</span> `:''}
+          ${spf.lookups?(()=>{const L=spf.lookups,lim=L.limit||10,cls=L.count>lim?'err':L.count>=lim-2?'warn':'ok';
+            const why=(L.breakdown||[]).filter(b=>b.cost).map(b=>`${b.term}: ${b.cost}`).join(' · ');
+            return `<span class="pill ${cls}" title="${escAttr(why||'No terms that need DNS lookups')}">${L.count}/${lim} DNS lookups</span> `;})():''}
           ${scoreBar(spf.score||0,spfColor)}
           <div style="margin-top:10px">${issueList(spf.issues||[])}</div>
         `:`<div style="color:var(--err);font-size:13px">✗ No SPF record found</div><div style="font-size:11px;color:var(--text-muted);margin-top:6px">Publish a TXT record at ${esc(data.domain||'')} starting with v=spf1</div>`}
