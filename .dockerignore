@@ -1,9 +1,13 @@
 # Keep the image to what runs: no git history, local data, tests or CI config.
 .git
+.gitignore
 .github
 .githooks
 node_modules
+npm-debug.log
 data
+*.db
+*.db-*
 tests
 *.md
 .env
