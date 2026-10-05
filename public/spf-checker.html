@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SPF Record Checker: count your DNS lookups (10 limit) · HetOps DNS</title>
+  <meta name="description" content="Check an SPF record and count every DNS lookup it costs, through nested includes, the way mail servers do. See which include pushes you over the 10-lookup limit. Free, no sign-up.">
+  <link rel="canonical" href="https://dns.hetops.dev/spf-checker">
+  <meta property="og:title" content="SPF Record Checker: count your DNS lookups">
+  <meta property="og:description" content="Count SPF DNS lookups through nested includes and find what pushes you over the 10-lookup limit.">
+  <meta property="og:url" content="https://dns.hetops.dev/spf-checker">
+  <meta property="og:image" content="https://dns.hetops.dev/og.png">
+  <link rel="icon" href="/favicon.ico" sizes="48x48">
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <meta name="theme-color" content="#0b0c0e">
+  <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+    html{color-scheme:dark}
+    body{background:#0b0c0e;color:#ececed;font:15px/1.65 Geist,system-ui,sans-serif;padding:0 0 80px}
+    a{color:#22b8d6}
+    .in{max-width:760px;margin:0 auto;padding:0 20px}
+    .nav{border-bottom:1px solid #24282d}
+    .nav .in{display:flex;align-items:center;justify-content:space-between;height:60px}
+    .wm{display:inline-flex;align-items:center;gap:9px;font-weight:600;font-size:19px;letter-spacing:-.02em;color:#ececed;text-decoration:none}
+    .wm svg{height:1.1em;width:auto}
+    .wm .tool{font:500 11px 'Geist Mono',monospace;letter-spacing:.08em;color:#a1a1aa;padding:3px 7px;border:1px solid #33383e;border-radius:6px}
+    .navlink{font-size:14px;color:#a1a1aa;text-decoration:none}.navlink:hover{color:#ececed}
+    h1{font-size:32px;font-weight:600;letter-spacing:-.025em;line-height:1.2;margin:44px 0 10px}
+    .lead{color:#a1a1aa;margin-bottom:24px;max-width:62ch}
+    form{display:flex;gap:8px}
+    input{flex:1;min-width:0;height:48px;padding:0 14px;border-radius:10px;border:1px solid #33383e;background:#111316;color:#ececed;font:15px 'Geist Mono',monospace}
+    input:focus{outline:2px solid #0891b2;outline-offset:1px}
+    button{height:48px;padding:0 20px;border-radius:10px;border:0;background:#0891b2;color:#fff;font:600 15px Geist,sans-serif;cursor:pointer}
+    button:disabled{opacity:.6;cursor:wait}
+    .card{margin-top:24px;padding:22px;border:1px solid #24282d;border-radius:14px;background:#111316}
+    .big{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+    .count{font:600 44px 'Geist Mono',monospace;letter-spacing:-.03em}
+    .count small{font-size:20px;color:#71717a}
+    .verdict{font-weight:500}
+    .ok{color:#34d399}.warn{color:#f59e0b}.err{color:#f05252}
+    .rec{margin:14px 0;padding:10px 12px;border-radius:8px;background:#0b0c0e;font:12.5px/1.6 'Geist Mono',monospace;color:#22b8d6;word-break:break-all}
+    table{width:100%;border-collapse:collapse;margin-top:6px;font-size:14px}
+    td,th{text-align:left;padding:8px 0;border-top:1px solid #24282d}
+    th{font-size:11px;font-weight:500;color:#71717a;text-transform:uppercase;letter-spacing:.06em;border-top:0}
+    td.n{text-align:right;font-family:'Geist Mono',monospace;width:70px}
+    td code{font:13px 'Geist Mono',monospace;color:#d4d4d8;word-break:break-all}
+    .bar{height:6px;border-radius:3px;background:#24282d;margin-top:10px;overflow:hidden}
+    .bar i{display:block;height:100%}
+    ul.issues{list-style:none;margin-top:14px}
+    ul.issues li{padding:8px 0 8px 22px;position:relative;color:#d4d4d8;font-size:14px;border-top:1px solid #24282d}
+    ul.issues li::before{content:"!";position:absolute;left:4px;color:#f59e0b;font-weight:700}
+    .cta{display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;margin-top:18px;padding:14px 16px;border-radius:10px;border:1px solid rgba(8,145,178,.35);background:rgba(8,145,178,.07);font-size:14px}
+    .cta a{display:inline-block;padding:9px 14px;border-radius:8px;background:#0891b2;color:#fff;text-decoration:none;font-weight:600;white-space:nowrap}
+    .muted{color:#71717a;font-size:13px}
+    h2{font-size:20px;font-weight:600;margin:48px 0 10px;padding-top:12px;border-top:1px solid #24282d}
+    h3{font-size:15px;font-weight:600;margin:20px 0 6px}
+    p,li{color:#a1a1aa}p{margin-bottom:10px}
+    .faq ul{padding-left:20px;margin-bottom:10px}
+    code.i{font:13px 'Geist Mono',monospace;color:#d4d4d8;background:#16191d;padding:1px 5px;border-radius:4px}
+    @media (max-width:560px){h1{font-size:26px}form{flex-direction:column}button{width:100%}}
+  </style>
+</head>
+<body>
+<header class="nav"><div class="in">
+  <a class="wm" href="/"><svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" viewBox="10 22 80 56" fill="#10b981"><rect x="10" y="22" width="24" height="56" rx="5"/><rect x="66" y="22" width="24" height="56" rx="5"/><rect x="33" y="46" width="34" height="8"/><circle cx="50" cy="50" r="11"/></svg>HetOps<span class="tool">DNS</span></a>
+  <a class="navlink" href="/">Full domain scan →</a>
+</div></header>
+
+<main class="in">
+  <h1>SPF record checker: count your DNS lookups</h1>
+  <p class="lead">Mail servers allow an SPF record at most <b>10 DNS lookups</b>, counted through every nested <code class="i">include:</code>. One over and SPF fails for every message. This counts them the way receivers do and shows which include costs the most.</p>
+
+  <form id="f" autocomplete="off">
+    <label for="d" class="muted" style="position:absolute;left:-9999px">Domain</label>
+    <input id="d" name="d" placeholder="example.com" spellcheck="false" autocapitalize="off" required>
+    <button id="go" type="submit">Check SPF</button>
+  </form>
+  <div id="out" aria-live="polite"></div>
+
+  <section class="faq">
+    <h2>What the 10-lookup limit is</h2>
+    <p>RFC 7208 limits SPF evaluation to 10 terms that need a DNS query: <code class="i">include:</code>, <code class="i">a</code>, <code class="i">mx</code>, <code class="i">ptr</code>, <code class="i">exists:</code> and <code class="i">redirect=</code>. Lookups inside each include count too, so <code class="i">include:spf.example-provider.com</code> can cost 3 or 4 on its own. <code class="i">ip4:</code>, <code class="i">ip6:</code> and <code class="i">all</code> are free.</p>
+    <p>Over the limit, receivers return <b>permerror</b>. DMARC treats that as an SPF failure, so mail that relied on SPF to pass DMARC starts landing in spam or getting rejected.</p>
+
+    <h3>Why it breaks without you changing anything</h3>
+    <p>Your record can stay the same while its cost grows: when a provider adds an include inside its own SPF record, every customer that includes it pays for it. That's why a record that worked last month can fail today.</p>
+
+    <h3>How to get back under 10</h3>
+    <ul>
+      <li>Remove includes for services you no longer send mail from. This is the most common cause.</li>
+      <li>Replace <code class="i">a</code> and <code class="i">mx</code> with the <code class="i">ip4:</code>/<code class="i">ip6:</code> ranges they resolve to, if those rarely change.</li>
+      <li>Send bulk or marketing mail from a subdomain (for example <code class="i">mail.example.com</code>) with its own SPF record.</li>
+      <li>Flatten an include into IP ranges only as a last resort: the provider can change its ranges and your copy goes stale.</li>
+    </ul>
+
+    <h3>Void lookups</h3>
+    <p>An include that points at a name with no SPF record (or no DNS at all) is a <i>void lookup</i>. Receivers allow two; the third is a permerror too. This checker counts them.</p>
+  </section>
+</main>
+
+<script>
+// Analytics: the same self-hosted, cookieless Umami as the main site.
+const UMAMI_SRC = 'https://analytics.hetops.dev/script.js';
+const UMAMI_WEBSITE_ID = 'fb75f958-eba4-49de-abd8-ee2ef5f70c11';
+if (UMAMI_SRC && UMAMI_WEBSITE_ID) {
+  const s = document.createElement('script');
+  s.defer = true; s.src = UMAMI_SRC; s.dataset.websiteId = UMAMI_WEBSITE_ID; s.dataset.domains = 'dns.hetops.dev';
+  document.head.appendChild(s);
+}
+const track = (name, data, tries = 0) => {
+  if (window.umami) { try { window.umami.track(name, data); } catch (e) {} return; }
+  if (tries < 20) setTimeout(() => track(name, data, tries + 1), 500);
+};
+
+// Everything shown comes from DNS, which the domain owner controls: escape it all.
+const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const clean = (v) => v.trim().toLowerCase().replace(/^https?:\/\//, '').replace(/[/?#].*$/, '').replace(/\.$/, '');
+
+const out = document.getElementById('out');
+const input = document.getElementById('d');
+const go = document.getElementById('go');
+
+async function check(domain) {
+  go.disabled = true; go.textContent = 'Checking…';
+  out.innerHTML = '<div class="card muted">Following every include…</div>';
+  try {
+    const r = await fetch('/api/email-security', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ domain }),
+    });
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.error || 'Check failed');
+    render(domain, d.spf || {});
+    track('spf-check', { over: !!(d.spf && d.spf.lookups && d.spf.lookups.count > (d.spf.lookups.limit || 10)) });
+  } catch (e) {
+    out.innerHTML = `<div class="card err">${esc(e.message || 'Check failed')}</div>`;
+  } finally {
+    go.disabled = false; go.textContent = 'Check SPF';
+  }
+}
+
+function render(domain, spf) {
+  const watch = `/?domain=${encodeURIComponent(domain)}`;
+  if (spf.error) {
+    out.innerHTML = `<div class="card"><div class="verdict warn">Couldn't look up DNS for ${esc(domain)} (${esc(spf.error)})</div>
+      <p class="muted" style="margin-top:8px">That's a DNS problem on the way, not a missing record. Try again in a moment.</p></div>`;
+    return;
+  }
+  if (!spf.present) {
+    out.innerHTML = `<div class="card"><div class="verdict err">No SPF record found for ${esc(domain)}</div>
+      <p class="muted" style="margin-top:8px">Without SPF, receivers can't tell which servers may send mail for this domain. Publish a TXT record at ${esc(domain)} starting with <code class="i">v=spf1</code>.</p>
+      <div class="cta"><span>See the record to publish, plus DKIM and DMARC.</span><a href="${esc(watch)}">Full email check</a></div></div>`;
+    return;
+  }
+  const L = spf.lookups || { count: 0, limit: 10, voidCount: 0, breakdown: [] };
+  const lim = L.limit || 10;
+  const cls = L.count > lim ? 'err' : L.count >= lim - 2 ? 'warn' : 'ok';
+  const verdict = L.count > lim ? `Over the limit: SPF fails (permerror) for every message`
+    : L.count === lim ? 'At the limit: one more include and SPF fails'
+    : L.count >= lim - 2 ? `${lim - L.count} lookups of headroom left`
+    : 'Well within the limit';
+  const pct = Math.min(100, Math.round((L.count / lim) * 100));
+  const color = cls === 'err' ? '#f05252' : cls === 'warn' ? '#f59e0b' : '#34d399';
+  const rows = (L.breakdown || []).filter((b) => b.cost > 0).map((b) =>
+    `<tr><td><code>${esc(b.term)}</code></td><td class="n">${b.cost}</td></tr>`).join('');
+  const issues = (spf.issues || []).map((i) => `<li>${esc(i)}</li>`).join('');
+  out.innerHTML = `<div class="card">
+    <div class="big"><span class="count ${cls}">${L.count}<small>/${lim}</small></span><span class="verdict ${cls}">${esc(verdict)}</span></div>
+    <div class="bar"><i style="width:${pct}%;background:${color}"></i></div>
+    <div class="rec">${esc(spf.record)}</div>
+    ${rows ? `<table><thead><tr><th>Term</th><th style="text-align:right">Lookups</th></tr></thead><tbody>${rows}</tbody></table>` : '<p class="muted">No terms need a DNS lookup.</p>'}
+    ${L.voidCount ? `<p class="muted" style="margin-top:10px">Void lookups: ${L.voidCount} of 2 allowed.</p>` : ''}
+    ${issues ? `<ul class="issues">${issues}</ul>` : ''}
+    <div class="cta"><span>Providers change their own SPF records. Get an email if <b>${esc(domain)}</b> ever crosses 10.</span><a href="${esc(watch)}">Watch this domain</a></div>
+  </div>`;
+}
+
+document.getElementById('f').addEventListener('submit', (e) => {
+  e.preventDefault();
+  const domain = clean(input.value);
+  if (!domain) return;
+  history.replaceState(null, '', `?domain=${encodeURIComponent(domain)}`);
+  check(domain);
+});
+const initial = new URLSearchParams(location.search).get('domain');
+if (initial) { input.value = clean(initial); check(clean(initial)); }
+</script>
+</body>
+</html>

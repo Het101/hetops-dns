@@ -115,3 +115,36 @@ test('/api/redirect refuses an internal `url` (it bypassed ssrfGuard, which only
     assert.equal(body.chain[0].statusCode, undefined, url);
   }
 });
+
+test('/spf-checker serves the SPF checker page and is in the sitemap', async () => {
+  const r = await fetch(`${base}/spf-checker`);
+  assert.equal(r.status, 200);
+  assert.match(await r.text(), /<title>SPF Record Checker/);
+  const sm = await (await fetch(`${base}/sitemap.xml`)).text();
+  assert.match(sm, /https:\/\/dns\.hetops\.dev\/spf-checker/);
+});
+
+test('a DNS failure is reported as "could not check", never as a missing SPF/DMARC record', async () => {
+  const { Resolver } = require('node:dns').promises;
+  const real = Resolver.prototype.resolveTxt;
+  const fail = (code) => async () => { throw Object.assign(new Error(code), { code }); };
+  const check = async () => (await fetch(`${base}/api/email-security`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ domain: 'example.com' }),
+  })).json();
+  try {
+    Resolver.prototype.resolveTxt = fail('ECONNREFUSED');
+    const down = await check();
+    assert.equal(down.spf.error, 'ECONNREFUSED');
+    assert.equal(down.dmarc.error, 'ECONNREFUSED');
+    assert.ok(!down.spf.issues.includes('No SPF record found'), 'must not claim the record is missing');
+    assert.ok(!down.dmarc.issues.includes('No DMARC record found'));
+
+    Resolver.prototype.resolveTxt = fail('ENODATA');
+    const none = await check();
+    assert.equal(none.spf.error, undefined);
+    assert.ok(none.spf.issues.includes('No SPF record found'));
+    assert.ok(none.dmarc.issues.includes('No DMARC record found'));
+  } finally {
+    Resolver.prototype.resolveTxt = real;
+  }
+});
