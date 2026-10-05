@@ -192,7 +192,10 @@ test('EMAIL_RE accepts normal addresses and is linear on long dotted input (ReDo
 
 test('safeFetch refuses internal hosts, including bracketed IPv6', async () => {
   const { safeFetch } = require('../server');
-  for (const url of ['http://127.0.0.1:9/', 'http://[::1]:9/', 'http://169.254.169.254/', 'ftp://example.com/']) {
+  // [::ffff:169.254.169.254] is normalised by URL to [::ffff:a9fe:a9fe]: the metadata
+  // service written as IPv6. String matching on the dotted form missed it.
+  for (const url of ['http://127.0.0.1:9/', 'http://[::1]:9/', 'http://169.254.169.254/', 'ftp://example.com/',
+    'http://[::ffff:169.254.169.254]/', 'http://[::ffff:a9fe:a9fe]/', 'http://[::ffff:7f00:1]:9/', 'http://[0:0:0:0:0:ffff:7f00:1]:9/']) {
     await assert.rejects(safeFetch(url), /not permitted/, url);
   }
 });
@@ -210,4 +213,14 @@ test('svgBadge escapes double quotes inside the aria-label attribute', () => {
   const svg = svgBadge('a" onload="x', 'b"<c>', '#fff');
   assert.ok(!svg.includes('a" onload'), svg);
   assert.ok(svg.includes('aria-label="a&quot; onload=&quot;x: b&quot;&lt;c&gt;"'), svg);
+});
+
+test('isBlockedIp: IPv4 hidden in IPv6 forms is still blocked; public addresses are not', () => {
+  for (const ip of ['::ffff:a9fe:a9fe', '::ffff:7f00:1', '0:0:0:0:0:ffff:7f00:1', '[::ffff:10.0.0.1]',
+    '64:ff9b::a9fe:a9fe', 'ff02::1', '::', '224.0.0.1', '100.64.1.1']) {
+    assert.equal(isBlockedIp(ip), true, `${ip} should be blocked`);
+  }
+  for (const ip of ['8.8.8.8', '2606:4700:4700::1111', '::ffff:808:808', '1.1.1.1']) {
+    assert.equal(isBlockedIp(ip), false, `${ip} should be allowed`);
+  }
 });

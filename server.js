@@ -468,34 +468,21 @@ function normalizeDomain(input) {
 // ── SSRF protection ────────────────────────────────────────────
 // Block outbound connections to private, loopback, link-local (incl. cloud
 // metadata 169.254.169.254), CGNAT, multicast and reserved ranges.
-function ipv4ToLong(ip) {
-  const p = ip.split('.').map(Number);
-  return ((p[0] << 24) >>> 0) + (p[1] << 16) + (p[2] << 8) + p[3];
-}
-function isBlockedIPv4(ip) {
-  const n = ipv4ToLong(ip);
-  const inRange = (base, bits) => {
-    const mask = bits === 0 ? 0 : (~0 << (32 - bits)) >>> 0;
-    return (n & mask) === (ipv4ToLong(base) & mask);
-  };
-  return inRange('0.0.0.0', 8) || inRange('10.0.0.0', 8) || inRange('100.64.0.0', 10)
-    || inRange('127.0.0.0', 8) || inRange('169.254.0.0', 16) || inRange('172.16.0.0', 12)
-    || inRange('192.0.0.0', 24) || inRange('192.168.0.0', 16) || inRange('198.18.0.0', 15)
-    || inRange('224.0.0.0', 4) || inRange('240.0.0.0', 4);
-}
+// Addresses a scan must never reach. net.BlockList understands every way an
+// address can be written, including IPv4-mapped IPv6 in hex (URL parsing turns
+// [::ffff:169.254.169.254] into [::ffff:a9fe:a9fe]), which string matching missed.
+const BLOCKED = new net.BlockList();
+for (const [base, bits] of [['0.0.0.0', 8], ['10.0.0.0', 8], ['100.64.0.0', 10], ['127.0.0.0', 8],
+  ['169.254.0.0', 16], ['172.16.0.0', 12], ['192.0.0.0', 24], ['192.168.0.0', 16], ['198.18.0.0', 15],
+  ['224.0.0.0', 4], ['240.0.0.0', 4]]) BLOCKED.addSubnet(base, bits, 'ipv4');
+for (const [base, bits] of [['::', 128], ['::1', 128], ['fe80::', 10], ['fc00::', 7], ['ff00::', 8],
+  ['64:ff9b::', 96]]) BLOCKED.addSubnet(base, bits, 'ipv6');   // unspecified, loopback, link-local, ULA, multicast, NAT64
+
+function isBlockedIPv4(ip) { return net.isIP(ip) === 4 && BLOCKED.check(ip, 'ipv4'); }
 function isBlockedIp(ip) {
+  ip = String(ip || '').replace(/^\[|\]$/g, '');
   const t = net.isIP(ip);
-  if (t === 4) return isBlockedIPv4(ip);
-  if (t === 6) {
-    const lower = ip.toLowerCase().replace(/^\[|\]$/g, '');
-    if (lower === '::1' || lower === '::') return true;
-    if (lower.startsWith('fe8') || lower.startsWith('fe9') || lower.startsWith('fea') || lower.startsWith('feb')) return true; // fe80::/10 link-local
-    if (lower.startsWith('fc') || lower.startsWith('fd')) return true; // fc00::/7 ULA
-    const mapped = lower.match(/::ffff:(\d+\.\d+\.\d+\.\d+)$/); // IPv4-mapped
-    if (mapped) return isBlockedIPv4(mapped[1]);
-    return false;
-  }
-  return false;
+  return t ? BLOCKED.check(ip, t === 6 ? 'ipv6' : 'ipv4') : false;
 }
 // Resolve a host and reject if any resolved address is in a blocked range.
 async function hostIsBlocked(host) {
