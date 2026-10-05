@@ -3855,7 +3855,7 @@ async function computeDomainGrade(domain) {
 }
 function badgeColor(pct) { return pct >= 85 ? '#22c55e' : pct >= 70 ? '#a3e635' : pct >= 50 ? '#f59e0b' : '#ef4444'; }
 function svgBadge(label, message, color) {
-  const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   const lw = Math.round(6.5 * label.length) + 12;
   const mw = Math.round(7 * message.length) + 16;
   const w = lw + mw;
@@ -4380,6 +4380,7 @@ if (require.main === module) {
 module.exports = {
   app,
   normalizeDomain,
+  svgBadge,
   safeFetch,
   guardedLookup,
   EMAIL_RE,

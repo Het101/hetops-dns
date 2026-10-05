@@ -49,7 +49,7 @@
   }
 
   function snippets(add, remove) {
-    var q = function (v) { return '"' + v.replace(/"/g, '\\"') + '"'; };
+    var q = function (v) { return '"' + v.replace(/[\\"]/g, '\\$&') + '"'; };
     var hidesServer = remove.indexOf('Server') !== -1;
     var others = remove.filter(function (n) { return n !== 'Server'; });
     var out = {};

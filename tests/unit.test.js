@@ -204,3 +204,10 @@ test('guardedLookup refuses names that resolve to loopback', async () => {
   const err2 = await new Promise((resolve) => guardedLookup('localhost', {}, (e) => resolve(e)));
   assert.equal(err2?.code, 'EBLOCKED');
 });
+
+test('svgBadge escapes double quotes inside the aria-label attribute', () => {
+  const { svgBadge } = require('../server');
+  const svg = svgBadge('a" onload="x', 'b"<c>', '#fff');
+  assert.ok(!svg.includes('a" onload'), svg);
+  assert.ok(svg.includes('aria-label="a&quot; onload=&quot;x: b&quot;&lt;c&gt;"'), svg);
+});
