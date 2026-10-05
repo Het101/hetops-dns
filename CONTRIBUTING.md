@@ -21,7 +21,7 @@ cp .env.example .env # optional; everything has a default
 npm run dev          # node --watch, http://localhost:3000
 ```
 
-With `SMTP_HOST` unset, sign-in links and alert emails are printed to the console instead of being sent, so you can sign in locally without a mail server. `DB_PATH` defaults to `data/hetops.db`.
+With `SMTP_HOST` unset, sign-in links and alert emails are printed to the console instead of being sent, so you can sign in locally without a mail server. Set `APP_URL=http://localhost:3000` so the printed link points at your local server; sign-in links never use the request's own host. `DB_PATH` defaults to `data/hetops.db`.
 
 ```bash
 npm test             # node --test, no network needed

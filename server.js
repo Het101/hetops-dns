@@ -4180,7 +4180,9 @@ app.post('/api/auth/request', authRequestLimiter, async (req, res) => {
   if (!EMAIL_RE.test(email) || email.length > 254) return res.status(400).json({ error: 'Valid email is required' });
   try {
     const token = store.createLoginToken(email);
-    const base = process.env.APP_URL || `${req.protocol}://${req.get('host')}`;
+    // Never build the link from the request: a forged Host or X-Forwarded-Host would
+    // email the victim a valid token on someone else's site. Local dev sets APP_URL.
+    const base = process.env.APP_URL || 'https://dns.hetops.dev';
     const url = `${base}/api/auth/verify?token=${token}`;
     await mailer.sendMagicLink(email, url);
   } catch (e) {
