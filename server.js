@@ -450,7 +450,8 @@ function createResolver(profileName = 'balanced') {
 // A valid lookup target is dot-separated labels containing no whitespace and no
 // characters that are illegal in hostnames/URLs (which would otherwise reach a DNS
 // query and throw EBADNAME, or enable injection). IDN/unicode labels are allowed.
-const HOSTNAME_RE = /^[^\s/\\@:?#%&=+'"<>;|`$(){}\[\],*!^~]+(\.[^\s/\\@:?#%&=+'"<>;|`$(){}\[\],*!^~]+)+$/;
+// Labels exclude '.', so there is exactly one way to split the input (linear time).
+const HOSTNAME_RE = /^[^.\s/\\@:?#%&=+'"<>;|`$(){}\[\],*!^~]+(\.[^.\s/\\@:?#%&=+'"<>;|`$(){}\[\],*!^~]+)+$/;
 
 function normalizeDomain(input) {
   if (typeof input !== 'string' || input.length > 256) return '';
@@ -467,44 +468,61 @@ function normalizeDomain(input) {
 // ── SSRF protection ────────────────────────────────────────────
 // Block outbound connections to private, loopback, link-local (incl. cloud
 // metadata 169.254.169.254), CGNAT, multicast and reserved ranges.
-function ipv4ToLong(ip) {
-  const p = ip.split('.').map(Number);
-  return ((p[0] << 24) >>> 0) + (p[1] << 16) + (p[2] << 8) + p[3];
-}
-function isBlockedIPv4(ip) {
-  const n = ipv4ToLong(ip);
-  const inRange = (base, bits) => {
-    const mask = bits === 0 ? 0 : (~0 << (32 - bits)) >>> 0;
-    return (n & mask) === (ipv4ToLong(base) & mask);
-  };
-  return inRange('0.0.0.0', 8) || inRange('10.0.0.0', 8) || inRange('100.64.0.0', 10)
-    || inRange('127.0.0.0', 8) || inRange('169.254.0.0', 16) || inRange('172.16.0.0', 12)
-    || inRange('192.0.0.0', 24) || inRange('192.168.0.0', 16) || inRange('198.18.0.0', 15)
-    || inRange('224.0.0.0', 4) || inRange('240.0.0.0', 4);
-}
+// Addresses a scan must never reach. net.BlockList understands every way an
+// address can be written, including IPv4-mapped IPv6 in hex (URL parsing turns
+// [::ffff:169.254.169.254] into [::ffff:a9fe:a9fe]), which string matching missed.
+const BLOCKED = new net.BlockList();
+for (const [base, bits] of [['0.0.0.0', 8], ['10.0.0.0', 8], ['100.64.0.0', 10], ['127.0.0.0', 8],
+  ['169.254.0.0', 16], ['172.16.0.0', 12], ['192.0.0.0', 24], ['192.168.0.0', 16], ['198.18.0.0', 15],
+  ['224.0.0.0', 4], ['240.0.0.0', 4]]) BLOCKED.addSubnet(base, bits, 'ipv4');
+for (const [base, bits] of [['::', 128], ['::1', 128], ['fe80::', 10], ['fc00::', 7], ['ff00::', 8],
+  ['64:ff9b::', 96]]) BLOCKED.addSubnet(base, bits, 'ipv6');   // unspecified, loopback, link-local, ULA, multicast, NAT64
+
+function isBlockedIPv4(ip) { return net.isIP(ip) === 4 && BLOCKED.check(ip, 'ipv4'); }
 function isBlockedIp(ip) {
+  ip = String(ip || '').replace(/^\[|\]$/g, '');
   const t = net.isIP(ip);
-  if (t === 4) return isBlockedIPv4(ip);
-  if (t === 6) {
-    const lower = ip.toLowerCase().replace(/^\[|\]$/g, '');
-    if (lower === '::1' || lower === '::') return true;
-    if (lower.startsWith('fe8') || lower.startsWith('fe9') || lower.startsWith('fea') || lower.startsWith('feb')) return true; // fe80::/10 link-local
-    if (lower.startsWith('fc') || lower.startsWith('fd')) return true; // fc00::/7 ULA
-    const mapped = lower.match(/::ffff:(\d+\.\d+\.\d+\.\d+)$/); // IPv4-mapped
-    if (mapped) return isBlockedIPv4(mapped[1]);
-    return false;
-  }
-  return false;
+  return t ? BLOCKED.check(ip, t === 6 ? 'ipv6' : 'ipv4') : false;
 }
 // Resolve a host and reject if any resolved address is in a blocked range.
 async function hostIsBlocked(host) {
   if (!host) return false;
+  host = host.replace(/^\[|\]$/g, ''); // URL.hostname keeps IPv6 brackets: "[::1]"
   if (net.isIP(host)) return isBlockedIp(host);
   try {
     const addrs = await dns.promises.lookup(host, { all: true });
     return addrs.some((a) => isBlockedIp(a.address));
   } catch {
     return false; // let the route's own lookup handle resolution failures
+  }
+}
+const BLOCKED_MSG = 'Target host is not permitted (private/internal address).';
+// dns.lookup for sockets opened to scan targets. Checking at connect time also
+// covers hosts derived from DNS (MX, subdomains), GET routes such as the badge,
+// and a rebinding answer that changed after ssrfGuard looked.
+function guardedLookup(hostname, options, callback) {
+  dns.lookup(hostname, options, (err, address, family) => {
+    if (err) return callback(err);
+    const list = Array.isArray(address) ? address : [{ address }];
+    if (list.some((a) => isBlockedIp(a.address))) {
+      return callback(Object.assign(new Error(BLOCKED_MSG), { code: 'EBLOCKED' }));
+    }
+    callback(null, address, family);
+  });
+}
+// fetch() for URLs built from a scan target (robots Sitemap:, mta-sts.<host>,
+// subdomains, redirects). Follows redirects by hand and re-checks every hop.
+// ponytail: fetch has no lookup hook, so a rebinding race remains here; a custom
+// undici dispatcher would close it but needs a new dependency.
+async function safeFetch(url, opts = {}, maxHops = 5) {
+  const { timeout, redirect, ...rest } = opts;
+  for (let hop = 0; ; hop++) {
+    const u = new URL(url);
+    if (!/^https?:$/.test(u.protocol) || await hostIsBlocked(u.hostname)) throw new Error(BLOCKED_MSG);
+    const res = await fetch(u, { ...rest, redirect: 'manual', signal: rest.signal || AbortSignal.timeout(timeout || 8000) });
+    const loc = res.headers.get('location');
+    if (redirect === 'manual' || res.status < 300 || res.status >= 400 || !loc || hop >= maxHops) return res;
+    url = new URL(loc, u).href;
   }
 }
 // Guard middleware: any /api lookup that targets a user-supplied `domain` is
@@ -1010,7 +1028,7 @@ app.post('/api/port-scan', heavyApiLimiter, async (req, res) => {
       socket.on('timeout', () => { socket.destroy(); });
       socket.on('error', () => { socket.destroy(); });
       socket.on('close', () => { resolve({ port, open: isOpen }); });
-      socket.connect(port, host);
+      socket.connect({ port, host, lookup: guardedLookup });
     });
   };
 
@@ -1219,141 +1237,6 @@ app.post('/api/blacklist-check', heavyApiLimiter, async (req, res) => {
   }
 });
 
-function analyzeCipherSuite(cipher) {
-  if (!cipher) return { pfs: false, rating: 'unknown', issues: [] };
-  
-  const issues = [];
-  let rating = 'good';
-  const name = cipher.name || '';
-  
-  const pfsCiphers = ['ECDHE', 'DHE', 'CHACHA20'];
-  const pfs = pfsCiphers.some(c => name.includes(c));
-  
-  const weakCiphers = ['RC4', 'DES', '3DES', 'MD5', 'SHA1'];
-  const hasWeak = weakCiphers.some(c => name.includes(c));
-  
-  const ecdheCurves = ['secp256r1', 'secp384r1', 'secp521r1', 'x25519'];
-  const modernCurves = ['secp256r1', 'secp384r1', 'secp521r1'];
-  
-  if (hasWeak) {
-    issues.push('Weak cipher suite detected');
-    rating = 'critical';
-  } else if (cipher.bits && cipher.bits < 128) {
-    issues.push('Key size below 128 bits');
-    rating = 'poor';
-  }
-  
-  if (!pfs) {
-    issues.push('No Perfect Forward Secrecy');
-    if (rating === 'good') rating = 'warning';
-  }
-  
-  if (cipher.version === 'TLSv1' || cipher.version === 'TLSv1.1') {
-    issues.push('Deprecated TLS version');
-    rating = 'critical';
-  }
-  
-  return { pfs, rating, issues, details: cipher };
-}
-
-function analyzeCertificateChain(cert, certChain) {
-  const chain = [];
-  const issues = [];
-  let rating = 'good';
-  
-  const now = new Date();
-  
-  if (cert && cert.raw) {
-    const leaf = {
-      type: 'leaf',
-      subject: cert.subject ? {
-        CN: cert.subject.CN,
-        O: cert.subject.O,
-        OU: cert.subject.OU
-      } : null,
-      issuer: cert.issuer ? {
-        CN: cert.issuer.CN,
-        O: cert.issuer.O,
-        OU: cert.issuer.OU
-      } : null,
-      validFrom: cert.valid_from,
-      validTo: cert.valid_to,
-      serialNumber: cert.serialNumber,
-      fingerprint: cert.fingerprint,
-      fingerprint256: cert.fingerprint256,
-      keyAlgorithm: cert.keyAlgorithm,
-      keyBits: cert.bits,
-      signatureAlgorithm: cert.signatureAlgorithm,
-      extKeyUsage: cert.extKeyUsage,
-      keyUsage: cert.keyUsage,
-      subjectAltName: cert.subjectaltname,
-      ocspURI: cert.ocspURI,
-      isCA: cert.isCA,
-      parsed: true
-    };
-    
-    if (cert.valid_from && cert.valid_to) {
-      const validFrom = new Date(cert.valid_from);
-      const validTo = new Date(cert.valid_to);
-      const daysRemaining = Math.floor((validTo - now) / (1000 * 60 * 60 * 24));
-      
-      if (now < validFrom) {
-        issues.push('Certificate not yet valid');
-        rating = 'error';
-      } else if (now > validTo) {
-        issues.push('Certificate expired');
-        rating = 'critical';
-      } else if (daysRemaining < 30) {
-        issues.push(`Certificate expires in ${daysRemaining} days`);
-        if (rating !== 'critical') rating = 'warning';
-      }
-    }
-    
-    chain.push(leaf);
-  }
-  
-  if (certChain && certChain.length > 0) {
-    certChain.forEach((intermediate, index) => {
-      if (intermediate && intermediate.raw) {
-        const validFrom = intermediate.valid_from ? new Date(intermediate.valid_from) : null;
-        const validTo = intermediate.valid_to ? new Date(intermediate.valid_to) : null;
-        
-        if (validTo && now > validTo) {
-          issues.push(`Intermediate certificate ${index + 1} expired`);
-          if (rating !== 'critical') rating = 'warning';
-        }
-        
-        chain.push({
-          type: 'intermediate',
-          depth: index + 1,
-          subject: intermediate.subject ? {
-            CN: intermediate.subject.CN,
-            O: intermediate.subject.O,
-            OU: intermediate.subject.OU
-          } : null,
-          issuer: intermediate.issuer ? {
-            CN: intermediate.issuer.CN,
-            O: intermediate.issuer.O
-          } : null,
-          validFrom: intermediate.valid_from,
-          validTo: intermediate.valid_to,
-          serialNumber: intermediate.serialNumber,
-          fingerprint256: intermediate.fingerprint256,
-          isCA: intermediate.isCA,
-          parsed: true
-        });
-      }
-    });
-  }
-  
-  if (chain.length < 2 && rating !== 'critical') {
-    issues.push('Incomplete certificate chain - may cause trust issues');
-    if (rating === 'good') rating = 'warning';
-  }
-  
-  return { chain, issues, rating };
-}
-
 function analyzeSecurityHeaders(headers) {
   const analysis = {
     headers: {},
@@ -1479,52 +1362,6 @@ function analyzeSecurityHeaders(headers) {
   
   return analysis;
 }
-
-const CIPHER_SUITES = {
-  protocols: {
-    'TLSv1.3': [
-      { name: 'TLS_AES_256_GCM_SHA384', security: 'good', pfs: true, bits: 256 },
-      { name: 'TLS_AES_128_GCM_SHA256', security: 'good', pfs: true, bits: 128 },
-      { name: 'TLS_CHACHA20_POLY1305_SHA256', security: 'good', pfs: true, bits: 256 },
-    ],
-    'TLSv1.2': [
-      { name: 'ECDHE-RSA-AES256-GCM-SHA384', security: 'good', pfs: true, bits: 256 },
-      { name: 'ECDHE-RSA-AES128-GCM-SHA256', security: 'good', pfs: true, bits: 128 },
-      { name: 'ECDHE-RSA-CHACHA20-POLY1305', security: 'good', pfs: true, bits: 256 },
-      { name: 'DHE-RSA-AES256-GCM-SHA384', security: 'good', pfs: true, bits: 256 },
-      { name: 'DHE-RSA-AES128-GCM-SHA256', security: 'good', pfs: true, bits: 128 },
-      { name: 'AES256-GCM-SHA384', security: 'warning', pfs: false, bits: 256 },
-      { name: 'AES128-GCM-SHA256', security: 'warning', pfs: false, bits: 128 },
-      { name: 'AES256-SHA256', security: 'warning', pfs: false, bits: 256 },
-      { name: 'AES128-SHA256', security: 'warning', pfs: false, bits: 128 },
-      { name: 'AES256-SHA', security: 'warning', pfs: false, bits: 256 },
-      { name: 'AES128-SHA', security: 'warning', pfs: false, bits: 128 },
-      { name: 'DES-CBC3-SHA', security: 'critical', pfs: false, bits: 112 },
-      { name: 'RC4-SHA', security: 'critical', pfs: false, bits: 128 },
-      { name: 'RC4-MD5', security: 'critical', pfs: false, bits: 128 },
-    ],
-    'TLSv1.1': [
-      { name: 'AES256-SHA', security: 'critical', pfs: false, bits: 256 },
-      { name: 'AES128-SHA', security: 'critical', pfs: false, bits: 128 },
-      { name: 'DES-CBC3-SHA', security: 'critical', pfs: false, bits: 112 },
-      { name: 'RC4-SHA', security: 'critical', pfs: false, bits: 128 },
-    ],
-    'TLSv1.0': [
-      { name: 'AES256-SHA', security: 'critical', pfs: false, bits: 256 },
-      { name: 'AES128-SHA', security: 'critical', pfs: false, bits: 128 },
-      { name: 'DES-CBC3-SHA', security: 'critical', pfs: false, bits: 112 },
-      { name: 'RC4-SHA', security: 'critical', pfs: false, bits: 128 },
-      { name: 'RC4-MD5', security: 'critical', pfs: false, bits: 128 },
-    ],
-    'SSLv3': [
-      { name: 'DES-CBC3-SHA', security: 'critical', pfs: false, bits: 112 },
-      { name: 'RC4-SHA', security: 'critical', pfs: false, bits: 128 },
-      { name: 'RC4-MD5', security: 'critical', pfs: false, bits: 128 },
-    ],
-  },
-  weakPatterns: [/RC4/i, /DES/i, /MD5/i, /NULL/i, /EXPORT/i, /anon/i, /kRB5/i, /aDSS/i],
-  pfsPatterns: [/ECDHE/i, /DHE/i, /CHACHA20/i],
-};
 
 function analyzeVulnerabilities(protocol, cipherName) {
   const vuln = {
@@ -1659,7 +1496,7 @@ function testTlsProtocol(host, port, protocolVersion, minVersion, maxVersion) {
       host,
       port: port || 443,
       servername: host,
-      rejectUnauthorized: false,
+      rejectUnauthorized: false, lookup: guardedLookup,
       minVersion,
       maxVersion,
     };
@@ -1818,7 +1655,7 @@ async function runSslCheck(host) {
       host,
       port: 443,
       servername: host,
-      rejectUnauthorized: false,
+      rejectUnauthorized: false, lookup: guardedLookup,
     });
     const timeout = setTimeout(() => {
       s.destroy();
@@ -2089,47 +1926,6 @@ app.post('/api/ssl-labs', heavyApiLimiter, async (req, res) => {
   const host = normalizeDomain(domain);
   if (!host) return res.status(400).json({ error: 'Invalid domain format' });
 
-  const fullReport = await new Promise((resolve) => {
-    const baseSslResult = {
-      host: host,
-      reportTime: new Date().toISOString(),
-      isPublic: false,
-      status: 'READY',
-      hostStart: new Date().toISOString(),
-      hostEnd: new Date().toISOString(),
-      engineVersion: '4.0.0',
-      criteriaVersion: '2009q',
-      durationMs: 0,
-    };
-
-    const endpoint = {
-      ipAddress: null,
-      serverName: host,
-      statusMessage: 'Ready',
-      grade: 'T',
-      gradeTrustIgnored: 'T',
-      isExceptional: false,
-      progress: 100,
-      details: {
-        certChains: [],
-        protocols: [],
-        supportedCurves: [],
-        serverSignature: null,
-        compressionMethods: [],
-        sessionTickets: [],
-        ocspStapling: false,
-        staplingRevoked: false,
-        sne: false,
-        protocolsInfo: [],
-        ciphersInfo: [],
-        simulationInfo: [],
-        issuesInfo: [],
-      },
-    };
-
-    resolve({ ...baseSslResult, endpoints: [endpoint] });
-  });
-
   const sslData = await new Promise((resolve, reject) => {
     const options = {
       hostname: 'api.ssllabs.com',
@@ -2169,7 +1965,7 @@ app.post('/api/ssl-labs', heavyApiLimiter, async (req, res) => {
       port: 443,
       path: '/',
       method: 'GET',
-      rejectUnauthorized: false,
+      rejectUnauthorized: false, lookup: guardedLookup,
       timeout: 10000,
     }, (response) => {
       const socket = response.socket;
@@ -2228,7 +2024,7 @@ app.post('/api/security-headers', heavyApiLimiter, async (req, res) => {
         path: '/',
         method: 'GET',
         timeout: 8000,
-        rejectUnauthorized: false
+        rejectUnauthorized: false, lookup: guardedLookup
       };
 
       const req = https.request(options, (res) => {
@@ -2268,7 +2064,7 @@ app.post('/api/dnssec', heavyApiLimiter, async (req, res) => {
   const resolver = new Resolver({ timeout: 5000, tries: 2 });
 
   try {
-    const soaResult = await resolver.resolveSoa(host);
+    await resolver.resolveSoa(host); // throws when the zone has no SOA
     
     const dnssecChecks = {
       present: false,
@@ -2344,7 +2140,7 @@ app.post('/api/ocsp', heavyApiLimiter, async (req, res) => {
   let responded = false;
   const respond = (fn) => { if (!responded) { responded = true; fn(); } };
 
-  const socket = tls.connect({ host, port: 443, servername: host, rejectUnauthorized: false, timeout: 10000 });
+  const socket = tls.connect({ host, port: 443, servername: host, rejectUnauthorized: false, lookup: guardedLookup, timeout: 10000 });
   socket.setTimeout(10000);
 
   socket.on('secureConnect', () => {
@@ -2459,7 +2255,7 @@ app.post('/api/mta-sts', heavyApiLimiter, async (req, res) => {
   }
   
   try {
-    const mtaStsWellKnown = await fetch(`https://mta-sts.${host}/.well-known/mta-sts.txt`, { timeout: 5000 });
+    const mtaStsWellKnown = await safeFetch(`https://mta-sts.${host}/.well-known/mta-sts.txt`, { timeout: 5000 });
     if (mtaStsWellKnown.ok) {
       const text = await mtaStsWellKnown.text();
       const lines = text.split('\n');
@@ -2568,7 +2364,7 @@ app.post('/api/redirect', heavyApiLimiter, async (req, res) => {
       const startTime = Date.now();
       
       try {
-        const response = await fetch(currentUrl, { 
+        const response = await safeFetch(currentUrl, { 
           method: 'GET',
           redirect: 'manual',
           timeout: 8000,
@@ -2682,17 +2478,15 @@ app.post('/api/tech', heavyApiLimiter, async (req, res) => {
     'Heroku': [/heroku/i],
     'Akamai': [/akamai/i, /akamaized/],
     'Fastly': [/fastly/i, /fastlylb/],
-    'Cloudflare': [/cloudflare/i, /cloudflaressl/],
   };
 
   const CDN_PATTERNS = {
-    'Cloudflare': [/cloudflare\.com/, /cloudflaressl/, /cloudflare\.net/],
+    'Cloudflare': [/cloudflare\.com/, /cloudflaressl/, /cloudflare\.net/, /1\.1\.1\.1/, /cloudflare-original/],
     'CloudFront': [/cloudfront\.net/, /d3n8a8pro7vhmx/, /d2ahvt9io4\.cloudfront/],
     'Fastly': [/fastly\.net/, /fastlylb/, /freetls\.fastly/],
     'Akamai': [/akamai\.com/, /akamaized\.net/, /edgesuite\.net/],
     'Azure CDN': [/azureedge\.net/, /azurewebsites\.net/],
     'Google Cloud CDN': [/googleusercontent\.com/, /gstatic\.com/],
-    'Cloudflare': [/1\.1\.1\.1/, /cloudflare-original/],
     'CDN77': [/cdn77/, /cdnp1/],
     'KeyCDN': [/keycdn/, /kxcdn/],
     'BunnyCDN': [/bunnycdn/, / Bunny/],
@@ -2717,7 +2511,7 @@ app.post('/api/tech', heavyApiLimiter, async (req, res) => {
         path: '/',
         method: 'GET',
         timeout: 8000,
-        rejectUnauthorized: false
+        rejectUnauthorized: false, lookup: guardedLookup
       };
       const req = https.request(options, (res) => {
         let data = '';
@@ -2825,7 +2619,7 @@ app.post('/api/http', heavyApiLimiter, async (req, res) => {
         path: '/',
         method: 'GET',
         timeout: 10000,
-        rejectUnauthorized: false
+        rejectUnauthorized: false, lookup: guardedLookup
       };
       const req = https.request(options, (res) => {
         result.timing.ttfbMs = Date.now() - startTime;
@@ -2886,7 +2680,6 @@ app.post('/api/http', heavyApiLimiter, async (req, res) => {
       result.protocols.http3Port = h3Match ? h3Match[1].replace(/[":]/g,'') : '443';
     }
 
-    const httpsTest = await fetch(`http://${host}`, { method: 'HEAD', signal: AbortSignal.timeout(5000), redirect: 'follow' }).catch(() => null);
     result.httpAvailable = true;
 
     let score = 0;
@@ -2961,7 +2754,7 @@ app.post('/api/mx-smtp', heavyApiLimiter, async (req, res) => {
 
       try {
         const smtpSocket = await new Promise((resolve, reject) => {
-          const socket = net.connect(25, mx.exchange, () => {
+          const socket = net.connect({ port: 25, host: mx.exchange, lookup: guardedLookup }, () => {
             resolve({ connected: true, socket });
           });
           socket.setTimeout(5000);
@@ -3003,7 +2796,6 @@ app.post('/api/mx-smtp', heavyApiLimiter, async (req, res) => {
 
     const allHaveStarttls = result.mxServers.every(m => m.smtp.starttls);
     const allHaveIPv4 = result.mxServers.every(m => m.ipv4);
-    const allHaveBanner = result.mxServers.every(m => m.smtp.banner);
 
     if (allHaveStarttls && allHaveIPv4) {
       result.rating = 'good';
@@ -3054,7 +2846,7 @@ app.post('/api/cookies', heavyApiLimiter, async (req, res) => {
         path: '/',
         method: 'GET',
         timeout: 8000,
-        rejectUnauthorized: false,
+        rejectUnauthorized: false, lookup: guardedLookup,
         headers: {
           'Cookie': ''
         }
@@ -3171,7 +2963,7 @@ app.post('/api/cors', heavyApiLimiter, async (req, res) => {
         path: '/',
         method: 'GET',
         timeout: 8000,
-        rejectUnauthorized: false
+        rejectUnauthorized: false, lookup: guardedLookup
       };
       const req = https.request(options, (res) => {
         resolve(res);
@@ -3260,7 +3052,7 @@ app.post('/api/trace', heavyApiLimiter, async (req, res) => {
 
     result.dualStack = result.hasIPv4 && result.hasIPv6;
 
-    if (result.hasIPv4) {
+    if (result.hasIPv4 && !isBlockedIp(result.ipv4)) {
       for (let i = 0; i < 3; i++) {
         const start = Date.now();
         try {
@@ -3317,7 +3109,7 @@ app.post('/api/robots', heavyApiLimiter, async (req, res) => {
 
   try {
     try {
-      const robotsResponse = await fetch(`https://${host}/robots.txt`, { timeout: 5000 });
+      const robotsResponse = await safeFetch(`https://${host}/robots.txt`, { timeout: 5000 });
       if (robotsResponse.ok) {
         const content = await robotsResponse.text();
         result.robots.present = true;
@@ -3364,7 +3156,7 @@ app.post('/api/robots', heavyApiLimiter, async (req, res) => {
       ].filter(Boolean);
 
       for (const location of sitemapLocations) {
-        const sitemapResponse = await fetch(location, { timeout: 5000 });
+        const sitemapResponse = await safeFetch(location, { timeout: 5000 });
         if (sitemapResponse.ok) {
           const content = await sitemapResponse.text();
           result.sitemap.present = true;
@@ -3720,7 +3512,7 @@ app.post('/api/subdomain-takeover', heavyApiLimiter, async (req, res) => {
       const entry = { subdomain: fqdn, cname, service: svc?.service || null, vulnerable: false, checked: !!svc };
       if (svc) {
         try {
-          const r = await fetch(`https://${fqdn}`, {
+          const r = await safeFetch(`https://${fqdn}`, {
             signal: AbortSignal.timeout(5000), redirect: 'follow',
             headers: { 'User-Agent': 'HetOps-DNS-Scanner/5.0' }
           });
@@ -3787,7 +3579,7 @@ app.post('/api/csp-analyzer', heavyApiLimiter, async (req, res) => {
   if (!host) return res.status(400).json({ error: 'Invalid domain' });
 
   try {
-    const r = await fetch(`https://${host}`, {
+    const r = await safeFetch(`https://${host}`, {
       signal: AbortSignal.timeout(8000), redirect: 'follow',
       headers: { 'User-Agent': 'Mozilla/5.0 HetOps-DNS-Scanner/5.0' }
     });
@@ -3907,6 +3699,7 @@ app.post('/api/ipv6', heavyApiLimiter, async (req, res) => {
   try { ipv6 = await resolver.resolve6(host); } catch (e) {}
 
   function tryTls(address, family) {
+    if (isBlockedIp(address)) return Promise.resolve({ success: false, error: BLOCKED_MSG });
     return new Promise(resolve => {
       const opts = { host: address, port: 443, servername: host, timeout: 5000, rejectUnauthorized: false };
       if (family === 6) opts.family = 6;
@@ -4049,7 +3842,7 @@ async function computeDomainGrade(domain) {
 }
 function badgeColor(pct) { return pct >= 85 ? '#22c55e' : pct >= 70 ? '#a3e635' : pct >= 50 ? '#f59e0b' : '#ef4444'; }
 function svgBadge(label, message, color) {
-  const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   const lw = Math.round(6.5 * label.length) + 12;
   const mw = Math.round(7 * message.length) + 16;
   const w = lw + mw;
@@ -4145,7 +3938,8 @@ app.get('/api/health', (req, res) => {
 
 // ══ AUTH, ACCOUNTS, HISTORY & ALERTS ═══════════════════════════
 const SID_COOKIE = 'sid';
-const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+// Domain labels exclude '.', so matching is linear on long dotted input (no ReDoS).
+const EMAIL_RE = /^[^\s@]+@[^\s@.]+(\.[^\s@.]+)+$/;
 const inProd = process.env.NODE_ENV === 'production';
 
 function cookieOpts(maxAgeMs) {
@@ -4177,7 +3971,7 @@ const authRequestLimiter = rateLimit({
 // Request a magic sign-in link.
 app.post('/api/auth/request', authRequestLimiter, async (req, res) => {
   const email = String(req.body?.email || '').trim().toLowerCase();
-  if (!EMAIL_RE.test(email) || email.length > 254) return res.status(400).json({ error: 'Valid email is required' });
+  if (email.length > 254 || !EMAIL_RE.test(email)) return res.status(400).json({ error: 'Valid email is required' });
   try {
     const token = store.createLoginToken(email);
     // Never build the link from the request: a forged Host or X-Forwarded-Host would
@@ -4538,10 +4332,12 @@ async function runDigests() {
 }
 setInterval(runDigests, 60 * 60 * 1000).unref();
 
-app.get('/legal', (req, res) => res.sendFile(path.join(__dirname, 'public', 'legal.html')));
+// Page routes read from disk; a generous per-IP cap keeps them from being a cheap flood target.
+const pageLimiter = rateLimit({ windowMs: 60 * 1000, max: 600, standardHeaders: true, legacyHeaders: false });
+app.get('/legal', pageLimiter, (req, res) => res.sendFile(path.join(__dirname, 'public', 'legal.html')));
 for (const page of ['terms', 'privacy', 'refunds']) app.get(`/${page}`, (req, res) => res.redirect(301, `/legal#${page}`));
 
-app.get('/docs', (req, res) => {
+app.get('/docs', pageLimiter, (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'docs.html'));
 });
 
@@ -4550,7 +4346,7 @@ app.all('/api/*', (req, res) => {
   res.status(404).json({ error: 'Unknown API endpoint' });
 });
 
-app.get('*', (req, res) => {
+app.get('*', pageLimiter, (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
@@ -4573,6 +4369,10 @@ if (require.main === module) {
 module.exports = {
   app,
   normalizeDomain,
+  svgBadge,
+  safeFetch,
+  guardedLookup,
+  EMAIL_RE,
   parseDomains,
   isBlockedIPv4,
   isBlockedIp,

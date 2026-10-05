@@ -170,3 +170,57 @@ test('diffStatus watches email authentication and delegation', () => {
   // Order of MX/NS answers is not a change.
   assert.deepEqual(diffStatus({ mx: ['a', 'b'] }, { mx: ['b', 'a'] }), []);
 });
+
+test('normalizeDomain runs in linear time on pathological dotted input (ReDoS)', () => {
+  const start = Date.now();
+  assert.equal(normalizeDomain('-.'.repeat(120) + '!'), '');
+  assert.ok(Date.now() - start < 200, `took ${Date.now() - start}ms`);
+  assert.equal(normalizeDomain('a..example.com'), '');
+  assert.equal(normalizeDomain('.example.com'), '');
+  assert.equal(normalizeDomain('sub.example.co.uk'), 'sub.example.co.uk');
+});
+
+test('EMAIL_RE accepts normal addresses and is linear on long dotted input (ReDoS)', () => {
+  const { EMAIL_RE } = require('../server');
+  assert.ok(EMAIL_RE.test('a.b+c@mail.example.co.uk'));
+  assert.ok(!EMAIL_RE.test('a@example'));
+  assert.ok(!EMAIL_RE.test('a@b..com'));
+  const start = Date.now();
+  assert.ok(!EMAIL_RE.test('a@' + '!.'.repeat(50000) + ' '));
+  assert.ok(Date.now() - start < 200, `took ${Date.now() - start}ms`);
+});
+
+test('safeFetch refuses internal hosts, including bracketed IPv6', async () => {
+  const { safeFetch } = require('../server');
+  // [::ffff:169.254.169.254] is normalised by URL to [::ffff:a9fe:a9fe]: the metadata
+  // service written as IPv6. String matching on the dotted form missed it.
+  for (const url of ['http://127.0.0.1:9/', 'http://[::1]:9/', 'http://169.254.169.254/', 'ftp://example.com/',
+    'http://[::ffff:169.254.169.254]/', 'http://[::ffff:a9fe:a9fe]/', 'http://[::ffff:7f00:1]:9/', 'http://[0:0:0:0:0:ffff:7f00:1]:9/']) {
+    await assert.rejects(safeFetch(url), /not permitted/, url);
+  }
+});
+
+test('guardedLookup refuses names that resolve to loopback', async () => {
+  const { guardedLookup } = require('../server');
+  const err = await new Promise((resolve) => guardedLookup('localhost', { all: true }, (e) => resolve(e)));
+  assert.equal(err?.code, 'EBLOCKED');
+  const err2 = await new Promise((resolve) => guardedLookup('localhost', {}, (e) => resolve(e)));
+  assert.equal(err2?.code, 'EBLOCKED');
+});
+
+test('svgBadge escapes double quotes inside the aria-label attribute', () => {
+  const { svgBadge } = require('../server');
+  const svg = svgBadge('a" onload="x', 'b"<c>', '#fff');
+  assert.ok(!svg.includes('a" onload'), svg);
+  assert.ok(svg.includes('aria-label="a&quot; onload=&quot;x: b&quot;&lt;c&gt;"'), svg);
+});
+
+test('isBlockedIp: IPv4 hidden in IPv6 forms is still blocked; public addresses are not', () => {
+  for (const ip of ['::ffff:a9fe:a9fe', '::ffff:7f00:1', '0:0:0:0:0:ffff:7f00:1', '[::ffff:10.0.0.1]',
+    '64:ff9b::a9fe:a9fe', 'ff02::1', '::', '224.0.0.1', '100.64.1.1']) {
+    assert.equal(isBlockedIp(ip), true, `${ip} should be blocked`);
+  }
+  for (const ip of ['8.8.8.8', '2606:4700:4700::1111', '::ffff:808:808', '1.1.1.1']) {
+    assert.equal(isBlockedIp(ip), false, `${ip} should be allowed`);
+  }
+});

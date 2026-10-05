@@ -1402,7 +1402,7 @@
           <button onclick="toggleWatch(this)" id="watchBtn" class="btn-export" title="Get alerted when certificates, SPF, DMARC, MX or nameservers change">
             <i data-lucide="radar"></i>Watch
           </button>
-          <button onclick="shareLink(this)" class="btn-export" title="Copy a shareable link to this report">
+          <button onclick="shareLink()" class="btn-export" title="Copy a shareable link to this report">
             <i data-lucide="link"></i>Share
           </button>
           <details class="more-menu">
@@ -3252,7 +3252,6 @@ function renderScorecard(){
     return;
   }
   el.className='card scorecard';
-  const h=computeHealth();
   const counts={crit:0,high:0,med:0,low:0,good:0};
   findings.forEach(x=>counts[x.sev]++);
 
@@ -4808,7 +4807,6 @@ function renderTakeover(data){
   const vulns=data.vulnerabilities||[];
   const results=data.results||[];
   const hasVulns=vulns.length>0;
-  const headerColor=hasVulns?'var(--err)':results.length===0?'var(--text-muted)':'var(--ok)';
   const headerIcon=hasVulns?'🔴':results.length===0?'✅':'✅';
   const summary=hasVulns
     ?`<span style="color:var(--err);font-weight:700">${vulns.length} potential takeover${vulns.length>1?'s':''} found!</span>`
@@ -4993,7 +4991,7 @@ function renderIpv6(data){
   if(data.error){ $('ipv6Content').innerHTML=`<div class="card"><div class="err-box">${esc(data.error)}</div></div>`; return; }
   const score=data.score||0;
   const scoreColor=score>=80?'var(--ok)':score>=50?'#a3e635':score>=30?'var(--warn)':'var(--err)';
-  const v4=data.ipv4||[], v6=data.ipv6||[];
+  const v6=data.ipv6||[];
   const checks=[
     { label:'AAAA Record Exists', ok:v6.length>0, val:v6.length>0?v6[0]:'No IPv6 address' },
     { label:'Dual-Stack (IPv4 + IPv6)', ok:!!data.dualStack, val:data.dualStack?'Yes':'No' },
