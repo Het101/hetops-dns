@@ -450,7 +450,8 @@ function createResolver(profileName = 'balanced') {
 // A valid lookup target is dot-separated labels containing no whitespace and no
 // characters that are illegal in hostnames/URLs (which would otherwise reach a DNS
 // query and throw EBADNAME, or enable injection). IDN/unicode labels are allowed.
-const HOSTNAME_RE = /^[^\s/\\@:?#%&=+'"<>;|`$(){}\[\],*!^~]+(\.[^\s/\\@:?#%&=+'"<>;|`$(){}\[\],*!^~]+)+$/;
+// Labels exclude '.', so there is exactly one way to split the input (linear time).
+const HOSTNAME_RE = /^[^.\s/\\@:?#%&=+'"<>;|`$(){}\[\],*!^~]+(\.[^.\s/\\@:?#%&=+'"<>;|`$(){}\[\],*!^~]+)+$/;
 
 function normalizeDomain(input) {
   if (typeof input !== 'string' || input.length > 256) return '';
@@ -3920,7 +3921,8 @@ app.get('/api/health', (req, res) => {
 
 // ══ AUTH, ACCOUNTS, HISTORY & ALERTS ═══════════════════════════
 const SID_COOKIE = 'sid';
-const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+// Domain labels exclude '.', so matching is linear on long dotted input (no ReDoS).
+const EMAIL_RE = /^[^\s@]+@[^\s@.]+(\.[^\s@.]+)+$/;
 const inProd = process.env.NODE_ENV === 'production';
 
 function cookieOpts(maxAgeMs) {
@@ -3952,7 +3954,7 @@ const authRequestLimiter = rateLimit({
 // Request a magic sign-in link.
 app.post('/api/auth/request', authRequestLimiter, async (req, res) => {
   const email = String(req.body?.email || '').trim().toLowerCase();
-  if (!EMAIL_RE.test(email) || email.length > 254) return res.status(400).json({ error: 'Valid email is required' });
+  if (email.length > 254 || !EMAIL_RE.test(email)) return res.status(400).json({ error: 'Valid email is required' });
   try {
     const token = store.createLoginToken(email);
     // Never build the link from the request: a forged Host or X-Forwarded-Host would
@@ -4348,6 +4350,7 @@ if (require.main === module) {
 module.exports = {
   app,
   normalizeDomain,
+  EMAIL_RE,
   parseDomains,
   isBlockedIPv4,
   isBlockedIp,
