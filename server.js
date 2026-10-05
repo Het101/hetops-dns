@@ -12,6 +12,7 @@ const whois = require('whois');
 const rateLimit = require('express-rate-limit');
 const cookieParser = require('cookie-parser');
 const store = require('./db');
+const { createWatch } = require('./watch');
 const mailer = require('./email');
 const VERSION = require('./package.json').version;
 // Shared with the browser (served from /shared/health-score.js) so the badge,
@@ -3940,6 +3941,13 @@ app.post('/api/scan', heavyApiLimiter, async (req, res) => {
       blacklist: results['blacklist-check'],
     }),
   });
+});
+
+// The portfolio's eye: are the HetOps services up? Fixed targets, cached for a minute.
+const watchStatus = createWatch();
+app.get('/api/watch', apiLimiter, async (req, res) => {
+  res.setHeader('Cache-Control', 'public, max-age=60');
+  res.json(await watchStatus());
 });
 
 app.get('/api/health', (req, res) => {
