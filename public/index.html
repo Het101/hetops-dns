@@ -1805,7 +1805,12 @@ if (UMAMI_SRC && UMAMI_WEBSITE_ID) {
   s.defer = true; s.src = UMAMI_SRC; s.dataset.websiteId = UMAMI_WEBSITE_ID; s.dataset.domains = 'dns.hetops.dev';
   document.head.appendChild(s);
 }
-const track = (name, data) => { try { window.umami && window.umami.track(name, data); } catch (e) {} };
+// The Umami script is deferred, so events fired at page load (a shared ?domain= link,
+// the sign-in redirect) would otherwise be lost. Retry for up to ~10s.
+const track = (name, data, tries = 0) => {
+  if (window.umami) { try { window.umami.track(name, data); } catch (e) {} return; }
+  if (UMAMI_SRC && tries < 20) setTimeout(() => track(name, data, tries + 1), 500);
+};
 
 // ── State ──────────────────────────────────────────────────────
 const S = { dns:null, whois:null, ssl:null, geoip:null, ports:null, bl:null, prop:null, headers:null, dnssec:null, ocsp:null, mtasts:null, redirect:null, tech:null, http:null, mx:null, trace:null, cors:null, robots:null, ct:null, emailsec:null, takeover:null, hsts:null, csp:null, typosquat:null, ipv6:null, dnssecChain:null };
@@ -3526,6 +3531,7 @@ function toggleWatch(btn){
     w=[{domain, addedAt:Date.now(), baseline:base, last:base, lastChanges:[], emailEnabled:true}, ...w].slice(0,30);
     setWatch(w);
     syncAlertToServer(domain, true);
+    track('watch', { signedIn: !!currentUser });
     syncWatchBtn();
     toast(currentUser?`Now monitoring ${domain}: email alerts on`:`Now monitoring ${domain} for changes`,'ok');
   }
@@ -4017,6 +4023,7 @@ async function submitLogin(e){
     const r=await fetch('/api/auth/request',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email})});
     const d=await r.json();
     if(!r.ok) throw new Error(d.error||'Request failed');
+    track('signin-request');
     $('loginBody').innerHTML=`<div style="text-align:center;padding:10px 0">
       <div style="font-size:40px;margin-bottom:10px">📬</div>
       <div style="font-size:15px;font-weight:700;margin-bottom:8px">Check your inbox</div>
@@ -4082,7 +4089,7 @@ function removeAlertFromServer(domain){
   const p=new URLSearchParams(window.location.search);
   const auth=p.get('auth');
   if(auth){
-    if(auth==='ok') toast('Signed in successfully','ok');
+    if(auth==='ok'){ toast('Signed in successfully','ok'); track('signin'); }
     else if(auth==='invalid') toast('That sign-in link is invalid or expired','err',5000);
     p.delete('auth');
     const qs=p.toString();
