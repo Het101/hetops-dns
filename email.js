@@ -74,7 +74,7 @@ function button(href, label) {
 }
 // Same severity wording as the in-app change timeline.
 function tone(change) {
-  if (/removed|weakened|expired|blacklisted|Nameservers changed/i.test(change)) return C.err;
+  if (/removed|weakened|expired|blacklisted|Nameservers changed|fail SPF/i.test(change)) return C.err;
   if (/within|expires in/i.test(change)) return C.warn;
   return C.accent;
 }
