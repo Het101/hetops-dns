@@ -4345,10 +4345,12 @@ async function runDigests() {
 }
 setInterval(runDigests, 60 * 60 * 1000).unref();
 
-app.get('/legal', (req, res) => res.sendFile(path.join(__dirname, 'public', 'legal.html')));
+// Page routes read from disk; a generous per-IP cap keeps them from being a cheap flood target.
+const pageLimiter = rateLimit({ windowMs: 60 * 1000, max: 600, standardHeaders: true, legacyHeaders: false });
+app.get('/legal', pageLimiter, (req, res) => res.sendFile(path.join(__dirname, 'public', 'legal.html')));
 for (const page of ['terms', 'privacy', 'refunds']) app.get(`/${page}`, (req, res) => res.redirect(301, `/legal#${page}`));
 
-app.get('/docs', (req, res) => {
+app.get('/docs', pageLimiter, (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'docs.html'));
 });
 
@@ -4357,7 +4359,7 @@ app.all('/api/*', (req, res) => {
   res.status(404).json({ error: 'Unknown API endpoint' });
 });
 
-app.get('*', (req, res) => {
+app.get('*', pageLimiter, (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
