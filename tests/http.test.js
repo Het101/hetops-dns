@@ -101,3 +101,17 @@ test('cross-origin requests from unknown origins are rejected', async () => {
   const r = await fetch(`${base}/api/health`, { headers: { Origin: 'https://evil.example' } });
   assert.equal(r.status, 403);
 });
+
+test('/api/redirect refuses an internal `url` (it bypassed ssrfGuard, which only checks `domain`)', async () => {
+  for (const url of [`${base}/api/health`, 'http://169.254.169.254/latest/meta-data/', 'http://[::1]:9/']) {
+    const r = await fetch(`${base}/api/redirect`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url }),
+    });
+    const body = await r.json();
+    assert.equal(body.chain.length, 1, url);
+    assert.match(body.chain[0].error || '', /not permitted/, url);
+    assert.equal(body.chain[0].statusCode, undefined, url);
+  }
+});

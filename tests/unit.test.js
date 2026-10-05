@@ -189,3 +189,18 @@ test('EMAIL_RE accepts normal addresses and is linear on long dotted input (ReDo
   assert.ok(!EMAIL_RE.test('a@' + '!.'.repeat(50000) + ' '));
   assert.ok(Date.now() - start < 200, `took ${Date.now() - start}ms`);
 });
+
+test('safeFetch refuses internal hosts, including bracketed IPv6', async () => {
+  const { safeFetch } = require('../server');
+  for (const url of ['http://127.0.0.1:9/', 'http://[::1]:9/', 'http://169.254.169.254/', 'ftp://example.com/']) {
+    await assert.rejects(safeFetch(url), /not permitted/, url);
+  }
+});
+
+test('guardedLookup refuses names that resolve to loopback', async () => {
+  const { guardedLookup } = require('../server');
+  const err = await new Promise((resolve) => guardedLookup('localhost', { all: true }, (e) => resolve(e)));
+  assert.equal(err?.code, 'EBLOCKED');
+  const err2 = await new Promise((resolve) => guardedLookup('localhost', {}, (e) => resolve(e)));
+  assert.equal(err2?.code, 'EBLOCKED');
+});

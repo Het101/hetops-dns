@@ -500,12 +500,42 @@ function isBlockedIp(ip) {
 // Resolve a host and reject if any resolved address is in a blocked range.
 async function hostIsBlocked(host) {
   if (!host) return false;
+  host = host.replace(/^\[|\]$/g, ''); // URL.hostname keeps IPv6 brackets: "[::1]"
   if (net.isIP(host)) return isBlockedIp(host);
   try {
     const addrs = await dns.promises.lookup(host, { all: true });
     return addrs.some((a) => isBlockedIp(a.address));
   } catch {
     return false; // let the route's own lookup handle resolution failures
+  }
+}
+const BLOCKED_MSG = 'Target host is not permitted (private/internal address).';
+// dns.lookup for sockets opened to scan targets. Checking at connect time also
+// covers hosts derived from DNS (MX, subdomains), GET routes such as the badge,
+// and a rebinding answer that changed after ssrfGuard looked.
+function guardedLookup(hostname, options, callback) {
+  dns.lookup(hostname, options, (err, address, family) => {
+    if (err) return callback(err);
+    const list = Array.isArray(address) ? address : [{ address }];
+    if (list.some((a) => isBlockedIp(a.address))) {
+      return callback(Object.assign(new Error(BLOCKED_MSG), { code: 'EBLOCKED' }));
+    }
+    callback(null, address, family);
+  });
+}
+// fetch() for URLs built from a scan target (robots Sitemap:, mta-sts.<host>,
+// subdomains, redirects). Follows redirects by hand and re-checks every hop.
+// ponytail: fetch has no lookup hook, so a rebinding race remains here; a custom
+// undici dispatcher would close it but needs a new dependency.
+async function safeFetch(url, opts = {}, maxHops = 5) {
+  const { timeout, redirect, ...rest } = opts;
+  for (let hop = 0; ; hop++) {
+    const u = new URL(url);
+    if (!/^https?:$/.test(u.protocol) || await hostIsBlocked(u.hostname)) throw new Error(BLOCKED_MSG);
+    const res = await fetch(u, { ...rest, redirect: 'manual', signal: rest.signal || AbortSignal.timeout(timeout || 8000) });
+    const loc = res.headers.get('location');
+    if (redirect === 'manual' || res.status < 300 || res.status >= 400 || !loc || hop >= maxHops) return res;
+    url = new URL(loc, u).href;
   }
 }
 // Guard middleware: any /api lookup that targets a user-supplied `domain` is
@@ -1011,7 +1041,7 @@ app.post('/api/port-scan', heavyApiLimiter, async (req, res) => {
       socket.on('timeout', () => { socket.destroy(); });
       socket.on('error', () => { socket.destroy(); });
       socket.on('close', () => { resolve({ port, open: isOpen }); });
-      socket.connect(port, host);
+      socket.connect({ port, host, lookup: guardedLookup });
     });
   };
 
@@ -1479,7 +1509,7 @@ function testTlsProtocol(host, port, protocolVersion, minVersion, maxVersion) {
       host,
       port: port || 443,
       servername: host,
-      rejectUnauthorized: false,
+      rejectUnauthorized: false, lookup: guardedLookup,
       minVersion,
       maxVersion,
     };
@@ -1638,7 +1668,7 @@ async function runSslCheck(host) {
       host,
       port: 443,
       servername: host,
-      rejectUnauthorized: false,
+      rejectUnauthorized: false, lookup: guardedLookup,
     });
     const timeout = setTimeout(() => {
       s.destroy();
@@ -1948,7 +1978,7 @@ app.post('/api/ssl-labs', heavyApiLimiter, async (req, res) => {
       port: 443,
       path: '/',
       method: 'GET',
-      rejectUnauthorized: false,
+      rejectUnauthorized: false, lookup: guardedLookup,
       timeout: 10000,
     }, (response) => {
       const socket = response.socket;
@@ -2007,7 +2037,7 @@ app.post('/api/security-headers', heavyApiLimiter, async (req, res) => {
         path: '/',
         method: 'GET',
         timeout: 8000,
-        rejectUnauthorized: false
+        rejectUnauthorized: false, lookup: guardedLookup
       };
 
       const req = https.request(options, (res) => {
@@ -2123,7 +2153,7 @@ app.post('/api/ocsp', heavyApiLimiter, async (req, res) => {
   let responded = false;
   const respond = (fn) => { if (!responded) { responded = true; fn(); } };
 
-  const socket = tls.connect({ host, port: 443, servername: host, rejectUnauthorized: false, timeout: 10000 });
+  const socket = tls.connect({ host, port: 443, servername: host, rejectUnauthorized: false, lookup: guardedLookup, timeout: 10000 });
   socket.setTimeout(10000);
 
   socket.on('secureConnect', () => {
@@ -2238,7 +2268,7 @@ app.post('/api/mta-sts', heavyApiLimiter, async (req, res) => {
   }
   
   try {
-    const mtaStsWellKnown = await fetch(`https://mta-sts.${host}/.well-known/mta-sts.txt`, { timeout: 5000 });
+    const mtaStsWellKnown = await safeFetch(`https://mta-sts.${host}/.well-known/mta-sts.txt`, { timeout: 5000 });
     if (mtaStsWellKnown.ok) {
       const text = await mtaStsWellKnown.text();
       const lines = text.split('\n');
@@ -2347,7 +2377,7 @@ app.post('/api/redirect', heavyApiLimiter, async (req, res) => {
       const startTime = Date.now();
       
       try {
-        const response = await fetch(currentUrl, { 
+        const response = await safeFetch(currentUrl, { 
           method: 'GET',
           redirect: 'manual',
           timeout: 8000,
@@ -2494,7 +2524,7 @@ app.post('/api/tech', heavyApiLimiter, async (req, res) => {
         path: '/',
         method: 'GET',
         timeout: 8000,
-        rejectUnauthorized: false
+        rejectUnauthorized: false, lookup: guardedLookup
       };
       const req = https.request(options, (res) => {
         let data = '';
@@ -2602,7 +2632,7 @@ app.post('/api/http', heavyApiLimiter, async (req, res) => {
         path: '/',
         method: 'GET',
         timeout: 10000,
-        rejectUnauthorized: false
+        rejectUnauthorized: false, lookup: guardedLookup
       };
       const req = https.request(options, (res) => {
         result.timing.ttfbMs = Date.now() - startTime;
@@ -2663,7 +2693,6 @@ app.post('/api/http', heavyApiLimiter, async (req, res) => {
       result.protocols.http3Port = h3Match ? h3Match[1].replace(/[":]/g,'') : '443';
     }
 
-    const httpsTest = await fetch(`http://${host}`, { method: 'HEAD', signal: AbortSignal.timeout(5000), redirect: 'follow' }).catch(() => null);
     result.httpAvailable = true;
 
     let score = 0;
@@ -2738,7 +2767,7 @@ app.post('/api/mx-smtp', heavyApiLimiter, async (req, res) => {
 
       try {
         const smtpSocket = await new Promise((resolve, reject) => {
-          const socket = net.connect(25, mx.exchange, () => {
+          const socket = net.connect({ port: 25, host: mx.exchange, lookup: guardedLookup }, () => {
             resolve({ connected: true, socket });
           });
           socket.setTimeout(5000);
@@ -2830,7 +2859,7 @@ app.post('/api/cookies', heavyApiLimiter, async (req, res) => {
         path: '/',
         method: 'GET',
         timeout: 8000,
-        rejectUnauthorized: false,
+        rejectUnauthorized: false, lookup: guardedLookup,
         headers: {
           'Cookie': ''
         }
@@ -2947,7 +2976,7 @@ app.post('/api/cors', heavyApiLimiter, async (req, res) => {
         path: '/',
         method: 'GET',
         timeout: 8000,
-        rejectUnauthorized: false
+        rejectUnauthorized: false, lookup: guardedLookup
       };
       const req = https.request(options, (res) => {
         resolve(res);
@@ -3036,7 +3065,7 @@ app.post('/api/trace', heavyApiLimiter, async (req, res) => {
 
     result.dualStack = result.hasIPv4 && result.hasIPv6;
 
-    if (result.hasIPv4) {
+    if (result.hasIPv4 && !isBlockedIp(result.ipv4)) {
       for (let i = 0; i < 3; i++) {
         const start = Date.now();
         try {
@@ -3093,7 +3122,7 @@ app.post('/api/robots', heavyApiLimiter, async (req, res) => {
 
   try {
     try {
-      const robotsResponse = await fetch(`https://${host}/robots.txt`, { timeout: 5000 });
+      const robotsResponse = await safeFetch(`https://${host}/robots.txt`, { timeout: 5000 });
       if (robotsResponse.ok) {
         const content = await robotsResponse.text();
         result.robots.present = true;
@@ -3140,7 +3169,7 @@ app.post('/api/robots', heavyApiLimiter, async (req, res) => {
       ].filter(Boolean);
 
       for (const location of sitemapLocations) {
-        const sitemapResponse = await fetch(location, { timeout: 5000 });
+        const sitemapResponse = await safeFetch(location, { timeout: 5000 });
         if (sitemapResponse.ok) {
           const content = await sitemapResponse.text();
           result.sitemap.present = true;
@@ -3496,7 +3525,7 @@ app.post('/api/subdomain-takeover', heavyApiLimiter, async (req, res) => {
       const entry = { subdomain: fqdn, cname, service: svc?.service || null, vulnerable: false, checked: !!svc };
       if (svc) {
         try {
-          const r = await fetch(`https://${fqdn}`, {
+          const r = await safeFetch(`https://${fqdn}`, {
             signal: AbortSignal.timeout(5000), redirect: 'follow',
             headers: { 'User-Agent': 'HetOps-DNS-Scanner/5.0' }
           });
@@ -3563,7 +3592,7 @@ app.post('/api/csp-analyzer', heavyApiLimiter, async (req, res) => {
   if (!host) return res.status(400).json({ error: 'Invalid domain' });
 
   try {
-    const r = await fetch(`https://${host}`, {
+    const r = await safeFetch(`https://${host}`, {
       signal: AbortSignal.timeout(8000), redirect: 'follow',
       headers: { 'User-Agent': 'Mozilla/5.0 HetOps-DNS-Scanner/5.0' }
     });
@@ -3683,6 +3712,7 @@ app.post('/api/ipv6', heavyApiLimiter, async (req, res) => {
   try { ipv6 = await resolver.resolve6(host); } catch (e) {}
 
   function tryTls(address, family) {
+    if (isBlockedIp(address)) return Promise.resolve({ success: false, error: BLOCKED_MSG });
     return new Promise(resolve => {
       const opts = { host: address, port: 443, servername: host, timeout: 5000, rejectUnauthorized: false };
       if (family === 6) opts.family = 6;
@@ -4350,6 +4380,8 @@ if (require.main === module) {
 module.exports = {
   app,
   normalizeDomain,
+  safeFetch,
+  guardedLookup,
   EMAIL_RE,
   parseDomains,
   isBlockedIPv4,
