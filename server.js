@@ -247,7 +247,11 @@ const DEFAULT_ALLOWED_ORIGINS = [
   'http://localhost:3000', 
   'http://127.0.0.1:3000', 
   'https://dns.hetops.dev', 
-  'http://dns.hetops.dev'
+  'http://dns.hetops.dev',
+  // The portfolio's live domain check. No Access-Control-Allow-Credentials is sent,
+  // so browsers never attach cookies: only anonymous, public lookups work from there.
+  'https://hetops.dev',
+  'https://www.hetops.dev'
 ];
 const configuredOrigins = (process.env.CORS_ORIGINS || '')
   .split(',')
