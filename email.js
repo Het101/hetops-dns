@@ -118,7 +118,7 @@ function renderAlert(domain, changes) {
   return shell({
     preheader: `${domain}: ${changes[0]}`,
     title: `${changes.length === 1 ? 'A change' : changes.length + ' changes'} on ${domain}`,
-    body: p(`Domain Watch spotted ${changes.length === 1 ? 'this change' : 'these changes'} on <b style="color:${C.text};font-family:${MONO}">${escapeHtml(domain)}</b>:`)
+    body: p(`HetOps DNS monitoring spotted ${changes.length === 1 ? 'this change' : 'these changes'} on <b style="color:${C.text};font-family:${MONO}">${escapeHtml(domain)}</b>:`)
       + `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 12px">${items}</table>`
       + button(report, 'View the full report'),
     footer: 'You get these alerts because you watch this domain on HetOps DNS. Open Monitoring to stop watching it or turn off email.',
