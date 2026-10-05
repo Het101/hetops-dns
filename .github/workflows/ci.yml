@@ -14,11 +14,10 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        # 20 is what the Dockerfile ships and Coolify deploys, so it is the one
-        # that has to pass. 22 is the next LTS: testing it now means the
-        # Dockerfile bump is a one-line change rather than a surprise. Move both
-        # together when the base image moves.
-        node: [20, 22]
+        # 22 is what the Dockerfile ships and Coolify deploys. 20 stays while
+        # package.json still allows it (and the main ruleset requires it by
+        # name); 24 is the next LTS, so the next base-image bump is no surprise.
+        node: [20, 22, 24]
     steps:
       # First step on purpose, so it sees every step after it. Watches what
       # this job talks to over the network: everything else in this repo checks
@@ -200,3 +199,43 @@ jobs:
       # kind that quietly grows.
       - name: dependency audit
         run: npm audit --audit-level=high
+
+  # The tests run the code; this runs the artifact Coolify deploys. A Dockerfile
+  # change (base image, build stage, .dockerignore) can break production while
+  # every test above stays green, so build the real image and talk to it.
+  image:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        with:
+          egress-policy: audit
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - name: build the production image
+        run: docker build -t hetops-dns:ci .
+      - name: the image serves the app
+        run: |
+          set -e
+          docker run -d --name app -p 3000:3000 hetops-dns:ci
+          trap 'docker logs app | tail -30; docker rm -f app > /dev/null' EXIT
+          for i in $(seq 1 30); do
+            curl -s -o /dev/null http://127.0.0.1:3000/ && break
+            sleep 1
+          done
+          code=$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:3000/)
+          [ "$code" = "200" ] || { echo "::error::GET / returned $code"; exit 1; }
+          curl -fsS http://127.0.0.1:3000/api/billing/plans | node -e '
+            const d = JSON.parse(require("fs").readFileSync(0, "utf8"));
+            if (!Array.isArray(d.plans) || d.plans.length !== 3) { console.error("::error::expected 3 plans"); process.exit(1); }
+          '
+          # The native SQLite module must load in the runtime stage, which has no
+          # compiler: a sign-in request writes to the database.
+          curl -fsS -X POST -H 'Content-Type: application/json' -d '{"email":"ci@example.com"}'             http://127.0.0.1:3000/api/auth/request > /dev/null
+          node_version=$(docker exec app node -v)
+          echo "image runs $node_version"
+          case "$node_version" in v22.*) ;; *) echo "::error::expected Node 22, got $node_version"; exit 1;; esac
+          if docker exec app sh -c 'command -v g++' > /dev/null; then
+            echo "::error::the runtime image still ships a compiler"; exit 1
+          fi
+          echo "image ok"
