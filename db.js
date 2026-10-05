@@ -111,6 +111,31 @@ for (const col of ['webhook_url TEXT', 'digest_enabled INTEGER DEFAULT 0', 'last
 const now = () => Date.now();
 const newId = (bytes = 32) => crypto.randomBytes(bytes).toString('hex');
 
+// Sign-in tokens, session ids and API keys are stored as SHA-256 hashes, so a copy
+// of this file can't be used to sign in or call the API. They are 20-32 random
+// bytes, so a plain hash is enough: there is nothing to brute-force or look up.
+const hashSecret = (v) => crypto.createHash('sha256').update(String(v)).digest('hex');
+// What the dashboard shows for a key it can no longer read back.
+const keyHint = (key) => `${key.slice(0, 10)}…${key.slice(-4)}`;
+
+// One-off: hash the secrets stored in plain text before this version. Nobody is
+// signed out and no API key stops working, because lookups hash what they're given.
+try { db.exec('ALTER TABLE api_keys ADD COLUMN hint TEXT'); } catch { /* already exists */ }
+if (db.pragma('user_version', { simple: true }) < 1) {
+  db.transaction(() => {
+    for (const { token } of db.prepare('SELECT token FROM login_tokens').all()) {
+      db.prepare('UPDATE login_tokens SET token = ? WHERE token = ?').run(hashSecret(token), token);
+    }
+    for (const { id } of db.prepare('SELECT id FROM sessions').all()) {
+      db.prepare('UPDATE sessions SET id = ? WHERE id = ?').run(hashSecret(id), id);
+    }
+    for (const { key } of db.prepare('SELECT key FROM api_keys').all()) {
+      db.prepare('UPDATE api_keys SET key = ?, hint = ? WHERE key = ?').run(hashSecret(key), keyHint(key), key);
+    }
+    db.pragma('user_version = 1');
+  })();
+}
+
 // ── Users ──
 const _userByEmail = db.prepare('SELECT * FROM users WHERE email = ?');
 const _insUserIgnore = db.prepare('INSERT INTO users (email, created_at) VALUES (?, ?) ON CONFLICT(email) DO NOTHING');
@@ -130,10 +155,11 @@ const _getTokenEmail = db.prepare('SELECT email FROM login_tokens WHERE token = 
 function createLoginToken(email, ttlMs = 15 * 60 * 1000) {
   _expirePriorTokens.run(email);            // invalidate any outstanding links for this email
   const token = newId(24);
-  _insToken.run(token, email, now() + ttlMs);
+  _insToken.run(hashSecret(token), email, now() + ttlMs);
   return token;
 }
 function consumeLoginToken(token) {
+  token = hashSecret(token);
   const info = _consumeToken.run(token, now());
   if (info.changes !== 1) return null;      // already used / expired / unknown — atomic guard
   const row = _getTokenEmail.get(token);
@@ -146,16 +172,16 @@ const _getSession = db.prepare('SELECT s.id, s.user_id, s.expires_at, u.email FR
 const _delSession = db.prepare('DELETE FROM sessions WHERE id = ?');
 function createSession(userId, ttlMs = 30 * 24 * 60 * 60 * 1000) {
   const id = newId(32);
-  _insSession.run(id, userId, now(), now() + ttlMs);
+  _insSession.run(hashSecret(id), userId, now(), now() + ttlMs);
   return id;
 }
 function getSession(id) {
   if (!id) return null;
-  const row = _getSession.get(id);
+  const row = _getSession.get(hashSecret(id));
   if (!row || row.expires_at < now()) return null;
-  return row; // { id, user_id, expires_at, email }
+  return row; // { id (hashed), user_id, expires_at, email }
 }
-function destroySession(id) { if (id) _delSession.run(id); }
+function destroySession(id) { if (id) _delSession.run(hashSecret(id)); }
 
 // ── History ──
 const _insHistory = db.prepare('INSERT INTO history (user_id, domain, ts, snapshot) VALUES (?, ?, ?, ?)');
@@ -252,21 +278,28 @@ function markDigestSent(id) { _setLastDigest.run(now(), id); }
 function digestUsers() { return _digestUsers.all(); }
 
 // ── API keys ──
-const _insApiKey = db.prepare('INSERT INTO api_keys (key, user_id, label, created_at) VALUES (?, ?, ?, ?)');
-const _listApiKeys = db.prepare('SELECT key, label, created_at, last_used FROM api_keys WHERE user_id = ? ORDER BY created_at DESC');
+const _insApiKey = db.prepare('INSERT INTO api_keys (key, hint, user_id, label, created_at) VALUES (?, ?, ?, ?, ?)');
+// `id` is the key's hash: enough to revoke it, useless as a key.
+const _listApiKeys = db.prepare('SELECT key AS id, hint, label, created_at, last_used FROM api_keys WHERE user_id = ? ORDER BY created_at DESC');
 const _delApiKey = db.prepare('DELETE FROM api_keys WHERE user_id = ? AND key = ?');
 const _apiKeyOwner = db.prepare('SELECT user_id FROM api_keys WHERE key = ?');
 const _apiKeyExists = db.prepare('SELECT 1 AS ok FROM api_keys WHERE key = ?');
 const _touchApiKey = db.prepare('UPDATE api_keys SET last_used = ? WHERE key = ?');
-function apiKeyExists(key) { return key ? !!_apiKeyExists.get(key) : false; }
+function apiKeyExists(key) { return key ? !!_apiKeyExists.get(hashSecret(key)) : false; }
 function createApiKey(userId, label) {
-  const key = 'hk_' + newId(20);
-  _insApiKey.run(key, userId, (label || '').slice(0, 60), now());
+  const key = 'hk_' + newId(20);   // returned once; only its hash is kept
+  _insApiKey.run(hashSecret(key), keyHint(key), userId, (label || '').slice(0, 60), now());
   return key;
 }
 function listApiKeys(userId) { return _listApiKeys.all(userId); }
-function deleteApiKey(userId, key) { _delApiKey.run(userId, key); }
-function apiKeyUser(key) { const r = _apiKeyOwner.get(key); if (r) { _touchApiKey.run(now(), key); return r.user_id; } return null; }
+function deleteApiKey(userId, id) { _delApiKey.run(userId, id); }
+function apiKeyUser(key) {
+  if (!key) return null;
+  const h = hashSecret(key);
+  const r = _apiKeyOwner.get(h);
+  if (r) { _touchApiKey.run(now(), h); return r.user_id; }
+  return null;
+}
 
 // Periodic cleanup of expired tokens/sessions.
 const _gcTokens = db.prepare('DELETE FROM login_tokens WHERE expires_at < ?');

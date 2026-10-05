@@ -149,7 +149,7 @@
       <tr><td>GET|POST|DELETE /api/history</td><td>Scan history sync</td></tr>
       <tr><td>GET|POST /api/alerts, DELETE /api/alerts/:domain</td><td>Monitoring watchlist (≤50 domains)</td></tr>
       <tr><td>GET|POST /api/settings</td><td>Webhook URL &amp; weekly digest</td></tr>
-      <tr><td>GET|POST /api/keys, DELETE /api/keys/:key</td><td>API key management (≤10 keys)</td></tr>
+      <tr><td>GET|POST /api/keys, DELETE /api/keys/:id</td><td>API key management (≤10 keys). Keys are shown once, at creation; the list returns a hint and an <code>id</code> to revoke by</td></tr>
     </table>
 
     <h2 id="badge">Status badge</h2>
