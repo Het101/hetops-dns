@@ -4,7 +4,7 @@ const os = require('node:os');
 const path = require('node:path');
 
 // Own throwaway database; each test file runs in its own process.
-process.env.DB_PATH = path.join(os.tmpdir(), `hetops-events-${process.pid}.db`);
+process.env.DB_PATH = path.join(os.tmpdir(), `hetops-events-${process.pid}-${Date.now()}.db`);
 const store = require('../db');
 
 test('alert events are stored per user, newest first, and trimmed', () => {

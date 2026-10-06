@@ -4,7 +4,7 @@ const crypto = require('node:crypto');
 const os = require('node:os');
 const path = require('node:path');
 
-process.env.DB_PATH = path.join(os.tmpdir(), `hetops-billing-${process.pid}.db`);
+process.env.DB_PATH = path.join(os.tmpdir(), `hetops-billing-${process.pid}-${Date.now()}.db`);
 process.env.LS_WEBHOOK_SECRET = 'whsec-test-0123456789';
 process.env.LS_VARIANT_PRO = '111';
 process.env.LS_VARIANT_TEAM = '222';
