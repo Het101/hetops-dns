@@ -4,6 +4,7 @@
 const TARGETS = [
   { name: 'hetops.dev', url: 'https://hetops.dev/' },
   { name: 'DNS Intelligence', url: null }, // this process: answering the request proves it is up
+  { name: 'Radar Cloud', url: 'https://radar.hetops.dev/api/health' },
   { name: 'Dev Toolkit', url: 'https://tools.hetops.dev/' },
   { name: 'Status', url: 'https://status.hetops.dev/' },
   { name: 'Analytics', url: 'https://analytics.hetops.dev/' },
