@@ -7,6 +7,7 @@
 // Env: LS_CHECKOUT_PRO / LS_CHECKOUT_TEAM  - the variants' "Share" checkout URLs
 //      LS_VARIANT_PRO / LS_VARIANT_TEAM    - optional variant ids; otherwise the variant name ("Pro", "Team") decides
 //      LS_WEBHOOK_SECRET                   - the webhook signing secret
+//      LS_PRODUCT_NAME                     - this app's product in the shared store (default "Domain Watch")
 //      PLAN_OVERRIDES                      - "email:plan,email:plan" (e.g. the owner on team)
 const crypto = require('crypto');
 
@@ -60,16 +61,25 @@ function billingUpdate(payload) {
   // Test-mode checkouts take Lemon Squeezy's fake cards, so a test-mode event must never change a
   // real account's plan. Only a deployment that opts in (local testing) accepts them.
   if (payload?.meta?.test_mode === true && process.env.LS_ALLOW_TEST_MODE !== 'true') return null;
-  const userId = Number(payload?.meta?.custom_data?.user_id);
   const a = payload?.data?.attributes;
   // Only subscription objects carry the plan. subscription_payment_* events send an invoice
   // (no variant, status "paid") and must not touch the plan.
-  if (!userId || !a || payload?.data?.type !== 'subscriptions') return null;
+  if (!a || payload?.data?.type !== 'subscriptions') return null;
+  // One Lemon Squeezy store sells every HetOps product, and each webhook receives all of
+  // their events: act only on this app's product.
+  const product = (process.env.LS_PRODUCT_NAME || 'Domain Watch').trim().toLowerCase();
+  if (a.product_name && String(a.product_name).trim().toLowerCase() !== product) return null;
+  // Our checkout links carry the user id. A purchase made straight from the store page has
+  // none, so it falls back to the buyer's email (verified by Lemon Squeezy, signed by them).
+  const userId = Number(payload?.meta?.custom_data?.user_id) || null;
+  const rawEmail = String(a.user_email || '').trim().toLowerCase();
+  const email = /^[^\s@]{1,64}@[^\s@.]+(\.[^\s@.]+)+$/.test(rawEmail) && rawEmail.length <= 254 ? rawEmail : null;
+  if (!userId && !email) return null;
   const plan = planForVariant(a.variant_id, a.variant_name);
   if (!plan) return null;
   const ts = (d) => (d ? Date.parse(d) || null : null);
   return {
-    userId,
+    userId, email,
     plan,
     status: a.status,
     endsAt: ts(a.ends_at) || ts(a.renews_at),

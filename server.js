@@ -4096,9 +4096,12 @@ app.post('/api/billing/webhook', express.raw({ type: '*/*', limit: '1mb' }), (re
   if (!billing.verifySignature(raw, req.headers['x-signature'])) return res.status(401).json({ error: 'Bad signature' });
   let payload; try { payload = JSON.parse(raw.toString('utf8')); } catch { return res.status(400).json({ error: 'Bad JSON' }); }
   const update = billing.billingUpdate(payload);
-  if (update && store.getUser(update.userId)) {
-    store.setBilling(update.userId, update);
-    console.log(`billing: user ${update.userId} -> ${update.plan} (${update.status})`);
+  // No user id: a store-page purchase. The plan goes to that email's account, created if
+  // needed, so it is there the first time they sign in.
+  const user = update && (update.userId ? store.getUser(update.userId) : store.upsertUser(update.email));
+  if (user) {
+    store.setBilling(user.id, update);
+    console.log(`billing: user ${user.id} -> ${update.plan} (${update.status})${update.userId ? '' : ' by email'}`);
   }
   res.json({ ok: true });
 });
