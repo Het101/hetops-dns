@@ -4101,7 +4101,7 @@ app.post('/api/billing/webhook', express.raw({ type: '*/*', limit: '1mb' }), (re
   const user = update && (update.userId ? store.getUser(update.userId) : store.upsertUser(update.email));
   if (user) {
     store.setBilling(user.id, update);
-    console.log(`billing: user ${user.id} -> ${update.plan} (${update.status})${update.userId ? '' : ' by email'}`);
+    console.log(`billing: user ${Number(user.id)} -> ${update.plan}${update.userId ? '' : ' by email'}`);   // nothing from the payload verbatim
   }
   res.json({ ok: true });
 });
