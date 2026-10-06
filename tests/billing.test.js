@@ -91,6 +91,14 @@ test('webhook: bad signature rejected; a valid subscription upgrades the user', 
 
   await hook(sub(u.id, 222, 'expired'));
   assert.equal(billing.planFor(store.getUser(u.id)).key, 'free');
+
+  // A test-mode purchase (fake card) is signed with a valid secret but must not grant a plan.
+  const fake = sub(u.id, 222, 'active'); fake.meta.test_mode = true;
+  assert.equal((await hook(fake)).status, 200);
+  assert.equal(billing.planFor(store.getUser(u.id)).key, 'free', 'test-mode event ignored');
+  process.env.LS_ALLOW_TEST_MODE = 'true';
+  assert.equal(billing.billingUpdate(fake).plan, 'team', 'accepted where testing is explicitly allowed');
+  delete process.env.LS_ALLOW_TEST_MODE;
 });
 
 test('plan limits: free watches 1 domain and gets an upgrade prompt; paid features answer 402', async () => {

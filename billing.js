@@ -57,6 +57,9 @@ function planForVariant(variantId, variantName) {
 
 // Webhook payload -> the billing fields to store, or null if it is not ours to act on.
 function billingUpdate(payload) {
+  // Test-mode checkouts take Lemon Squeezy's fake cards, so a test-mode event must never change a
+  // real account's plan. Only a deployment that opts in (local testing) accepts them.
+  if (payload?.meta?.test_mode === true && process.env.LS_ALLOW_TEST_MODE !== 'true') return null;
   const userId = Number(payload?.meta?.custom_data?.user_id);
   const a = payload?.data?.attributes;
   // Only subscription objects carry the plan. subscription_payment_* events send an invoice
