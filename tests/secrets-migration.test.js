@@ -7,7 +7,7 @@ const os = require('node:os');
 const path = require('node:path');
 const Database = require('better-sqlite3');
 
-const file = path.join(os.tmpdir(), `hetops-migrate-${process.pid}.db`);
+const file = path.join(os.tmpdir(), `hetops-migrate-${process.pid}-${Date.now()}.db`);
 const old = new Database(file);
 old.exec(`
   CREATE TABLE users (id INTEGER PRIMARY KEY AUTOINCREMENT, email TEXT UNIQUE NOT NULL, created_at INTEGER NOT NULL);

@@ -4,7 +4,7 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 
-process.env.DB_PATH = path.join(os.tmpdir(), `hetops-dmarc-${process.pid}.db`);
+process.env.DB_PATH = path.join(os.tmpdir(), `hetops-dmarc-${process.pid}-${Date.now()}.db`);
 process.env.DMARC_INGEST_SECRET = 'test-secret-0123456789';
 process.env.PLAN_OVERRIDES = 'ingest@example.com:pro';   // automatic collection is a paid feature
 const store = require('../db');

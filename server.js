@@ -13,6 +13,7 @@ const rateLimit = require('express-rate-limit');
 const cookieParser = require('cookie-parser');
 const store = require('./db');
 const { createWatch } = require('./watch');
+const { createBackups } = require('./backup');
 const mailer = require('./email');
 const VERSION = require('./package.json').version;
 // Shared with the browser (served from /shared/health-score.js) so the badge,
@@ -3943,6 +3944,9 @@ app.post('/api/scan', heavyApiLimiter, async (req, res) => {
   });
 });
 
+// Nightly backups with a restore drill on each one (backup.js). Scheduled only when listening.
+const backups = createBackups({ db: store.db, dbPath: store.DB_PATH });
+
 // The portfolio's eye: are the HetOps services up? Fixed targets, cached for a minute.
 const watchStatus = createWatch();
 app.get('/api/watch', apiLimiter, async (req, res) => {
@@ -3956,6 +3960,7 @@ app.get('/api/health', (req, res) => {
     service: 'HetOps DNS Intelligence',
     version: VERSION,
     cache: { entries: responseCache.size, ttlMs: CACHE_TTL_MS },
+    backup: backups.status() && (({ at, ok, bytes, offsite, error }) => ({ at, ok, bytes, offsite, error }))(backups.status()),
     features: [
       'batchLookup', 'resolverProfiles', 'securityInsights', 'timingMetrics',
       'authoritativeComparison', 'subdomainDiscovery', 'cnameChainTracing',
@@ -4409,6 +4414,8 @@ if (require.main === module) {
   app.listen(PORT, () => {
     console.log(`DNS Lookup tool running on port ${PORT}`);
   });
+  // First backup ten minutes after start (so a crash loop does not churn snapshots), then daily.
+  setTimeout(() => { backups.run(); setInterval(backups.run, 24 * 60 * 60 * 1000).unref(); }, 10 * 60 * 1000).unref();
 }
 
 // Exported for tests (node --test); the server only listens when run directly.

@@ -7,7 +7,7 @@ const path = require('node:path');
 
 process.env.NODE_ENV = 'production';
 delete process.env.APP_URL;
-process.env.DB_PATH = path.join(os.tmpdir(), `hetops-linkhost-${process.pid}.db`);
+process.env.DB_PATH = path.join(os.tmpdir(), `hetops-linkhost-${process.pid}-${Date.now()}.db`);
 const mailer = require('../email');
 const sent = [];
 mailer.sendMagicLink = async (to, url) => { sent.push(url); };

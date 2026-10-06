@@ -6,7 +6,7 @@ const os = require('node:os');
 const path = require('node:path');
 const Database = require('better-sqlite3');
 
-process.env.DB_PATH = path.join(os.tmpdir(), `hetops-secrets-${process.pid}.db`);
+process.env.DB_PATH = path.join(os.tmpdir(), `hetops-secrets-${process.pid}-${Date.now()}.db`);
 const store = require('../db');
 const raw = new Database(process.env.DB_PATH, { readonly: true });
 const stored = (table, col) => raw.prepare(`SELECT ${col} AS v FROM ${table}`).all().map((r) => r.v);
