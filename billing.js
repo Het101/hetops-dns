@@ -81,7 +81,7 @@ function billingUpdate(payload) {
   return {
     userId, email,
     plan,
-    status: a.status,
+    status: String(a.status || '').replace(/[^a-z_]/gi, '').slice(0, 20),   // logged and stored: letters only
     endsAt: ts(a.ends_at) || ts(a.renews_at),
     customerId: a.customer_id != null ? String(a.customer_id) : null,
     subscriptionId: payload.data.id != null ? String(payload.data.id) : null,
