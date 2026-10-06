@@ -92,6 +92,18 @@ test('webhook: bad signature rejected; a valid subscription upgrades the user', 
   await hook(sub(u.id, 222, 'expired'));
   assert.equal(billing.planFor(store.getUser(u.id)).key, 'free');
 
+  // Another HetOps product's subscription (same store, same webhook feed) is not ours.
+  assert.equal((await hook(sub(u.id, 111, 'active', { product_name: 'Radar Cloud' }))).status, 200);
+  assert.equal(billing.planFor(store.getUser(u.id)).key, 'free', 'other product ignored');
+  assert.equal(billing.billingUpdate(sub(u.id, 111, 'active', { product_name: 'Domain Watch' })).plan, 'pro');
+
+  // Bought from the store page: no user id, so the buyer's email gets the plan, account created if new.
+  const storeBuy = sub(u.id, 111, 'active', { user_email: 'Walk.In@Example.com' }); delete storeBuy.meta.custom_data;
+  assert.equal((await hook(storeBuy)).status, 200);
+  assert.equal(billing.planFor(store.upsertUser('walk.in@example.com')).key, 'pro');
+  const junk = sub(u.id, 111, 'active', { user_email: 'not an email' }); delete junk.meta.custom_data;
+  assert.equal(billing.billingUpdate(junk), null);
+
   // A test-mode purchase (fake card) is signed with a valid secret but must not grant a plan.
   const fake = sub(u.id, 222, 'active'); fake.meta.test_mode = true;
   assert.equal((await hook(fake)).status, 200);
