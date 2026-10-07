@@ -84,7 +84,16 @@ function createBackups({ db, dbPath, env = process.env, log = console, fetchImpl
   const dir = env.BACKUP_DIR || path.join(path.dirname(dbPath), 'backups');
   const keep = Number(env.BACKUP_KEEP) || 14;
   const offsite = !!(env.S3_ENDPOINT && env.S3_BUCKET && env.S3_ACCESS_KEY_ID && env.S3_SECRET_ACCESS_KEY);
+  // The last result is kept next to the snapshots, so a restart doesn't report "no backup" for the
+  // ten minutes before the first run (which uptime monitors read as a failed backup).
+  const stateFile = path.join(dir, 'last-backup.json');
   let last = null;
+  try { last = JSON.parse(fs.readFileSync(stateFile, 'utf8')); } catch { /* no backup yet */ }
+  // Only fields this process produced are saved, never error text (it can carry a storage server's reply).
+  const remember = () => {
+    const keep = { at: last.at, ok: last.ok === true, file: last.ok ? last.file : undefined, bytes: last.ok ? last.bytes : undefined, offsite: ['uploaded', 'failed', 'not configured'].includes(last.offsite) ? last.offsite : 'failed', ...(last.ok ? {} : { error: 'see the server log' }) };
+    try { fs.mkdirSync(dir, { recursive: true }); fs.writeFileSync(stateFile, JSON.stringify(keep)); } catch (e) { log.error(`[backup] could not save status: ${e.message}`); }
+  };
 
   async function run() {
     const started = Date.now();
@@ -101,6 +110,7 @@ function createBackups({ db, dbPath, env = process.env, log = console, fetchImpl
       last = { at: new Date().toISOString(), ok: false, error: err.message, offsite: offsite ? 'failed' : 'not configured' };
       log.error(`[backup] failed: ${err.message}`);
     }
+    remember();
     return last;
   }
   return { run, status: () => last, dir, offsite };

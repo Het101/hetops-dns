@@ -74,3 +74,14 @@ test('SigV4 matches the AWS test vector', () => {
 });
 
 const crypto = require('node:crypto');
+
+test('the last result survives a restart, so health is not empty after a deploy', async () => {
+  const { db, file } = liveDb();
+  const first = createBackups({ db, dbPath: file, env: {}, log: { info() {}, error() {} } });
+  const ran = await first.run();
+  const again = createBackups({ db, dbPath: file, env: {}, log: { info() {}, error() {} } });   // a fresh process
+  assert.equal(again.status().ok, true);
+  assert.equal(again.status().at, ran.at);
+  assert.equal(again.status().file, ran.file);
+  assert.equal(again.status().offsite, ran.offsite);
+});
