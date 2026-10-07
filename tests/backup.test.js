@@ -10,10 +10,10 @@ function liveDb() {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'hetops-backup-'));
   const file = path.join(dir, 'live.db');
   const db = new Database(file);
-  db.exec("CREATE TABLE users (id INTEGER PRIMARY KEY, email TEXT); CREATE TABLE watches (id INTEGER PRIMARY KEY, domain TEXT);");
+  db.exec("CREATE TABLE users (id INTEGER PRIMARY KEY, email TEXT); CREATE TABLE alerts (id INTEGER PRIMARY KEY, domain TEXT);");
   const ins = db.prepare('INSERT INTO users (email) VALUES (?)');
   for (let i = 0; i < 25; i++) ins.run(`u${i}@example.com`);
-  db.prepare("INSERT INTO watches (domain) VALUES ('example.com')").run();
+  db.prepare("INSERT INTO alerts (domain) VALUES ('example.com')").run();
   return { db, file, dir };
 }
 
@@ -23,7 +23,7 @@ test('a backup is a restorable copy: integrity ok and the same rows as the live 
   const s = await b.run();
   assert.equal(s.ok, true, s.error);
   assert.equal(s.offsite, 'not configured');
-  assert.deepEqual(s.counts, { users: 25, watches: 1 });
+  assert.deepEqual(s.counts, { users: 25, alerts: 1 });
   // The restore drill, end to end: restore the snapshot as a fresh database and read it.
   const restored = path.join(dir, 'restored.db');
   fs.copyFileSync(path.join(b.dir, s.file), restored);

@@ -7,7 +7,7 @@ const path = require('path');
 const crypto = require('crypto');
 const Database = require('better-sqlite3');
 
-const TABLES = ['users', 'watches', 'history'];
+const TABLES = ['users', 'alerts', 'history']; // alerts holds the Domain Watch watches
 
 function stamp(d = new Date()) { return d.toISOString().replace(/[-:]/g, '').replace(/\..*/, '').replace('T', '-'); }
 
