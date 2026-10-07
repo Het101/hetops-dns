@@ -89,7 +89,11 @@ function createBackups({ db, dbPath, env = process.env, log = console, fetchImpl
   const stateFile = path.join(dir, 'last-backup.json');
   let last = null;
   try { last = JSON.parse(fs.readFileSync(stateFile, 'utf8')); } catch { /* no backup yet */ }
-  const remember = () => { try { fs.mkdirSync(dir, { recursive: true }); fs.writeFileSync(stateFile, JSON.stringify(last)); } catch (e) { log.error(`[backup] could not save status: ${e.message}`); } };
+  // Only fields this process produced are saved, never error text (it can carry a storage server's reply).
+  const remember = () => {
+    const keep = { at: last.at, ok: last.ok === true, file: last.ok ? last.file : undefined, bytes: last.ok ? last.bytes : undefined, offsite: ['uploaded', 'failed', 'not configured'].includes(last.offsite) ? last.offsite : 'failed', ...(last.ok ? {} : { error: 'see the server log' }) };
+    try { fs.mkdirSync(dir, { recursive: true }); fs.writeFileSync(stateFile, JSON.stringify(keep)); } catch (e) { log.error(`[backup] could not save status: ${e.message}`); }
+  };
 
   async function run() {
     const started = Date.now();
