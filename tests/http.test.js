@@ -158,3 +158,9 @@ test('the portfolio may call the public API, but never with credentials', async 
   const other = await fetch(`${base}/api/email-security`, { method: 'OPTIONS', headers: { Origin: 'https://evil.example' } });
   assert.equal(other.status, 403);
 });
+
+test('security headers: HSTS on, framework not advertised (DAST findings)', async () => {
+  const r = await fetch(`${base}/api/health`);
+  assert.equal(r.headers.get('strict-transport-security'), 'max-age=31536000; includeSubDomains');
+  assert.equal(r.headers.get('x-powered-by'), null);
+});

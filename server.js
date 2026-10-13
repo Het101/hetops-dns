@@ -243,6 +243,7 @@ function fetchIntermediateCerts(leafCert, timeout = 5000) {
 }
 
 const app = express();
+app.disable('x-powered-by'); // don't advertise the framework (DAST finding)
 const PORT = process.env.PORT || 3000;
 const DEFAULT_PORTS = [21, 22, 25, 80, 110, 143, 443, 465, 993, 995, 3306, 5432, 8080];
 const DEFAULT_ALLOWED_ORIGINS = [
@@ -279,6 +280,7 @@ const CSP = [
   "frame-ancestors 'none'",
 ].join('; ');
 app.use((req, res, next) => {
+  res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains'); // browsers ignore it over plain http
   res.setHeader('X-Content-Type-Options', 'nosniff');
   res.setHeader('X-Frame-Options', 'DENY');
   res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
