@@ -16,7 +16,7 @@
     "dotenv": "^17.4.2",
     "express": "^4.22.3",
     "express-rate-limit": "^8.3.2",
-    "nodemailer": "^10.0.14",
+    "nodemailer": "^10.1.4",
     "postal-mime": "^4.0.4",
     "whois": "^2.16.1"
   },
